@@ -1,0 +1,131 @@
+/* 넝쿨OS Purple Theme 기본 설정 */
+:root {
+  --nk-primary: #1d4ed8;
+  --nk-secondary: #3b82f6; /* 파란색 */
+  --nk-accent: #3b82f6; /* 파란색 */
+  --nk-soft-bg: #f5f3ff;
+  --nk-soft-border: #e9e5ff;
+  --nk-text-strong: #1d4ed8;
+  --nk-text-normal: #3b82f6; /* 파란색 */
+
+  --nk-soft-bg: #f3f8ff; /* 카드 soft 버전 배경 */  
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: #f7f7fb;
+  color: var(--nk-text-normal);
+}
+
+/* 공통 카드 스타일 */
+.nk-card {
+  background: white;
+  border-radius: 1rem;
+  border: 1px solid var(--nk-soft-border);
+  padding: 1.25rem;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+/* 부드러운 배경 카드 */
+.nk-card-soft {
+  background: var(--nk-soft-bg);
+}
+
+/* 보라 버튼 */
+.nk-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1.2rem;
+  border-radius: 0.75rem;
+  border: none;
+  cursor: pointer;
+  background: var(--nk-primary);
+  color: white;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.1s ease;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
+}
+
+.nk-btn-primary:hover {
+  background: var(--nk-secondary);
+  transform: translateY(-1px);
+}
+
+.nk-btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+}
+
+/* 제목 스타일 */
+.nk-title-main {
+  color: var(--nk-text-strong);
+  letter-spacing: -0.03em;
+}
+
+.nk-subtitle {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+/* textarea 스타일 */
+.nk-textarea {
+  width: 100%;
+  min-height: 110px;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--nk-soft-border);
+  font-size: 0.95rem;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  background: white;
+}
+
+.nk-textarea:focus {
+  border-color: var(--nk-accent);
+  box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.3);
+}
+
+/* 최근 기록 리스트 스타일 */
+.nk-log-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* 버튼 영역: 중앙 정렬 */
+.nk-save-row {
+  display: flex;
+  justify-content: center;   /* 🔹 버튼 중앙 정렬 */
+  margin-top: 0.75rem;
+  width: 100%;
+}
+
+/* 버튼 기본 */
+.nk-save-button {
+  padding: 0.55rem 1.4rem;
+  font-size: 14px;
+}
+
+/* 모바일에서도 중앙 유지 */
+@media (max-width: 480px) {
+  .nk-save-row {
+    justify-content: center;   /* 🔹 모바일도 중앙 */
+  }
+
+  .nk-save-button {
+    font-size: 15px;
+    padding: 0.65rem 1.4rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .nk-log-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}

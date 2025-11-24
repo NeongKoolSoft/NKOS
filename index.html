@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NKOS</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --nk-bg: #F5F7FF;
+        --nk-primary: #4F6DF5;
+        --nk-secondary: #6A89FF;
+        --nk-accent: #B9C8FF;
+        --nk-text: #2A2A2A;
+      }
+
+      .nk-bg {
+        background-color: var(--nk-bg);
+      }
+
+      .nk-text {
+        color: var(--nk-text);
+      }
+
+      .nk-bg-primary {
+        background-color: var(--nk-primary);
+      }
+
+      .nk-text-primary {
+        color: var(--nk-primary);
+      }
+
+      .nk-bg-secondary {
+        background-color: var(--nk-secondary);
+      }
+
+      .nk-border-accent {
+        border-color: var(--nk-accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
