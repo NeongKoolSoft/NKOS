@@ -74,6 +74,9 @@ function DailyLogInput() {
   const [logs, setLogs] = useState([]);
   const [debugData, setDebugData] = useState(null);
 
+  // 🔹 URL 파라미터 기반 디버그 활성 여부
+  const [debugEnabled, setDebugEnabled] = useState(false);
+
   // 초기 데이터 로드
   useEffect(() => {
     try {
@@ -94,10 +97,22 @@ function DailyLogInput() {
     }
   }, []);
 
+  // 🔹 URL 쿼리로 디버그 모드 활성화 (?debug=1 일 때만)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("debug") === "1") {
+        setDebugEnabled(true);
+      }
+    } catch (e) {
+      console.error("Failed to read debug query param", e);
+    }
+  }, []);  
+
   const handleSave = () => {
     const trimmed = text.trim();
     if (!trimmed) {
-      console.log("빈 문자열로 판단되어 return");
+      //console.log("빈 문자열로 판단되어 return");
       return;
     }
 
@@ -239,15 +254,15 @@ function DailyLogInput() {
         )}
 
         {/* 🔍 디버그 패널 */}
-        {debugData && (
+        {debugEnabled ? (
           <DebugPanel
-            text={debugData.text}
-            signals={debugData.signals}
-            patternBoosts={debugData.patternBoosts}
-            scores={debugData.scores}
-            finalMode={debugData.finalMode}
+            text={debugData?.text}
+            signals={debugData?.signals}
+            patternBoosts={debugData?.patternBoosts}
+            scores={debugData?.scores}
+            finalMode={debugData?.finalMode}
           />
-        )}
+        ) : null}
       </div>
     </section>
   );
