@@ -14,7 +14,7 @@ function App() {
       <header className="border-b border-gray-200 bg-white/70 backdrop-blur">
         <nav className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between text-sm md:text-base">
           <Link to="/" className="font-bold nk-text-primary">
-            NKOS
+            넝쿨소프트
           </Link>
           <div className="flex gap-4">
             <Link to="/" className="text-gray-600 hover:nk-text-primary">
