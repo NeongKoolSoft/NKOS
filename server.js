@@ -25,11 +25,13 @@ const port = process.env.PORT || 3001;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    "http://localhost:5173",               // 로컬 개발 프론트
+    "https://nkos.vercel.app"             // 실제 배포된 프론트 주소
+  ]
+}));
 app.use(express.json());
-
-// 🌟 [핵심] 리액트 빌드 파일('dist')을 브라우저에 제공
-app.use(express.static(path.join(__dirname, 'dist')));
 
 // 모드 목표 정의
 const MODE_GOALS = {
@@ -41,7 +43,7 @@ const MODE_GOALS = {
     'DELAY': '에너지를 회복하고 번아웃을 예방하는 가장 쉬운 휴식을 권장합니다.'
 };
 
-console.log(`\n=== 🚀 넝쿨OS 통합 서버 가동 (http://localhost:${port}) ===`);
+console.log(`🚀 NKOS Backend running on port ${port}`);
 
 // =================================================================
 // 3. API 엔드포인트: 행동 추천
@@ -159,9 +161,6 @@ app.post('/api/generate-report', async (req, res) => {
 // 5. 모든 기타 요청은 React 화면(index.html)으로 돌려보냄
 // (새로고침 시 404 방지)
 // =================================================================
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
 
 app.listen(port, () => {
     console.log(`✅ 서버 정상 가동 중 (http://localhost:${port})`);
