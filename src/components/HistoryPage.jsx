@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
+import { formatKoreanTime } from "../utils/time";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
@@ -327,7 +328,9 @@ function HistoryPage() {
               {renderedLogs.map((log) => (
                 <li key={log.id} className="nk-card text-sm md:text-base">
                   <div className="flex justify-between mb-2">
-                    <span className="text-gray-400 text-xs">{log.date}</span>
+                    <span className="text-gray-400 text-xs">
+                      {formatKoreanTime(log.created_at || log.date)}
+                    </span>                    
                     <span className="text-nk-primary font-bold text-xs bg-blue-50 px-2 py-1 rounded">
                       {MODE_LABEL[log.mode] || log.mode}
                     </span>
