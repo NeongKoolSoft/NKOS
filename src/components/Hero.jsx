@@ -3,9 +3,6 @@ function Hero() {
   return (
           <section className="text-center">
             <div className="max-w-3xl mx-auto">
-              <h1 className="text-4xl md:text-5xl font-extrabold mb-4 nk-text-primary">
-                넝쿨OS
-              </h1>
               <p className="text-lg md:text-xl text-gray-700 mb-2">
                 삶의 의사결정을 위한 나만의 운영체제
               </p>

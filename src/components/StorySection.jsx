@@ -1,7 +1,7 @@
 // src/components/StorySection.jsx
 function StorySection() {
   return (
-    <section className="py-16 px-4 bg-gray-100 md:py-20">
+    <section className="py-8 px-4 bg-gray-100 md:py-10">
       <div className="max-w-3xl mx-auto">
         <h2 className="text-2xl md:text-3xl font-semibold mb-6 text-center">
           왜 사람에게 OS가 필요한가?

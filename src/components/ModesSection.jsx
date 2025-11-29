@@ -1,9 +1,9 @@
 // src/components/ModesSection.jsx
 function ModesSection() {
   return (
-    <section className="py-16 px-4 bg-white md:py-20">
+    <section className="py-8 px-4 bg-white md:py-20">
       <div className="max-w-4xl mx-auto">
-        <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">
+        <h2 className="text-2xl md:text-3xl font-bold text-center mb-10">
           넝쿨OS의 의사결정 모드 6가지
         </h2>
 
