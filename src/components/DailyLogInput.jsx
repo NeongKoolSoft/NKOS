@@ -1,18 +1,14 @@
 // src/components/DailyLogInput.jsx
 // 넝쿨OS 메인 화면 (기능: Supabase + 레벨 + AI 유지, UI는 예전 카드 스타일로 리디자인)
-
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
-
 import { extractSignals, decideMode, computeScores } from "../lib/modeEngine";
 import { getPatternBoosts } from "../lib/modePatterns";
-
 import DebugPanel from "./DebugPanel";
 import NKChart from "./NKChart";
 import VineLevel from "./VineLevel";
-import Onboarding from "./Onboarding";
-
 import { useNavigate } from "react-router-dom";
+import { formatKoreanTime } from "../utils/time";
 
 // 기본은 로컬(개발용), 배포에서는 Vercel 환경변수로 덮어씀
 const API_BASE_URL =
@@ -352,9 +348,6 @@ const buildModeInsight = (currentMode, logs) => {
   // ========================================================
   return (
     <section className="py-8 px-4 md:px-6">
-      {/* 온보딩 안내 */}
-      <Onboarding />
-
       {/* 👇 여정 단계 안내 배너 (FREE / READY_FOR_PRO / PRO 용) */}
       <div className="max-w-4xl mx-auto mb-4">
         {userStage === "USER" && logCount > 0 && logCount < 20 && (
@@ -501,7 +494,10 @@ const buildModeInsight = (currentMode, logs) => {
                   key={log.id}
                   className="nk-log-row flex flex-col md:flex-row md:items-center md:justify-between gap-1"
                 >
-                  <div className="text-gray-500">{log.date}</div>
+                  <div className="text-gray-500">
+                    {formatKoreanTime(log.created_at || log.date)}
+                  </div>
+
                   <div className="flex-1 md:mx-4 text-gray-700 truncate">
                     {log.text}
                   </div>

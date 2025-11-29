@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
+const SUPPORT_EMAIL = "pke7709@naver.com"; // ✅ 넝쿨이 실제 받을 메일로 변경
+
 function ProSupportPage() {
   const [user, setUser] = useState(null);
   const [amount, setAmount] = useState("");
@@ -47,7 +49,24 @@ function ProSupportPage() {
 
       if (insertError) throw insertError;
 
+      // ✅ DB 저장 성공
       setStatus("done");
+
+      // ✅ 여기서 운영자 메일 작성창 열기 (자동 발송 아님, "작성창"만)
+      const subject = encodeURIComponent("[넝쿨OS] Pro 활성화 요청");
+      const bodyLines = [
+        "넝쿨OS Pro 활성화 요청이 접수되었습니다.",
+        "",
+        `계정 이메일: ${user.email}`,
+        `후원 금액: ${amount || "-"} `,
+        "",
+        "사용자 메시지:",
+        message || "(메시지 없음)",
+        "",
+      ];
+      const body = encodeURIComponent(bodyLines.join("\n"));
+
+      window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
     } catch (err) {
       console.error(err);
       setStatus("error");

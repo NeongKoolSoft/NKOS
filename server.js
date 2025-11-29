@@ -107,8 +107,10 @@ app.post("/api/generate-action", async (req, res) => {
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 200,
+            temperature: 0.0,
+            topP: 0.1,
+            topK: 1,
+            maxOutputTokens: 200
         },
       }),
     });

@@ -1,65 +1,148 @@
-// src/App.jsx
 import { useState, useEffect } from "react";
-import { supabase } from "./lib/supabase"; // DB 연동
-import Login from "./components/Login";    // 로그인 화면
+import { Routes, Route, Link, useNavigate } from "react-router-dom";
+import { supabase } from "./lib/supabase";
 
+import Login from "./components/Login";
+import Onboarding from "./components/Onboarding";
+import DailyLogInput from "./components/DailyLogInput";
+import HistoryPage from "./components/HistoryPage";
+import ProSupportPage from "./components/ProSupportPage";
+
+// 랜딩(비로그인)용 컴포넌트들
 import Hero from "./components/Hero";
 import StorySection from "./components/StorySection";
 import ModesSection from "./components/ModesSection";
 import CtaSection from "./components/CtaSection";
-import DailyLogInput from "./components/DailyLogInput";
-import HistoryPage from "./components/HistoryPage";
 
-import { Routes, Route, Link } from "react-router-dom";
-import ProSupportPage from "./components/ProSupportPage";
+// 🔹 비로그인 상태에서 보이는 Public Home (소개 페이지)
+function PublicHome({ onClickStart }) {
+  return (
+    <div className="min-h-screen nk-bg nk-text">
+      <main className="max-w-5xl mx-auto px-5 py-10">
+        <div className="space-y-10">
+          <Hero onClickStart={onClickStart} />
+          <StorySection />
+          <ModesSection />
+          <CtaSection onClickStart={onClickStart} />
+        </div>
+      </main>
+    </div>
+  );
+}
 
 function App() {
-  const [session, setSession] = useState(null);
+  const navigate = useNavigate();
 
-  // 1. 로그인 상태 관리 (Supabase)
+  // --------------------------------
+  // 🔥 (1) 온보딩 노출 여부 상태
+  // --------------------------------
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("NKOS_tutorial_77") === "true";
+  });
+
+  const handleFinishOnboarding = () => {
+    window.localStorage.setItem("NKOS_tutorial_77", "true");
+    setHasSeenOnboarding(true);
+  };
+
+  // PublicHome에서 “시작하기” 클릭 시 로그인 화면으로 이동
+  const handleClickStart = () => {
+    navigate("/login");
+  };
+
+  // --------------------------------
+  // 🔥 (2) 로그인 세션 상태
+  // --------------------------------
+  const [session, setSession] = useState(null);
+  const [loadingSession, setLoadingSession] = useState(true);
+
   useEffect(() => {
-    // 현재 세션 확인
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      setLoadingSession(false);
     });
 
-    // 로그인/로그아웃 감지
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  // 2. 로그인이 안 되어 있으면 로그인 화면 표시
-  if (!session) {
-    return <Login />;
+  // --------------------------------
+  // 🔥 (3) 온보딩: 로그인 안 된 사람에게만 1회 노출
+  // --------------------------------
+  if (!hasSeenOnboarding && !session) {
+    return <Onboarding onFinish={handleFinishOnboarding} />;
   }
 
-  // 3. 로그인 상태일 때 메인 앱 표시
+  // --------------------------------
+  // 🔥 (4) 세션 로딩 중
+  // --------------------------------
+  if (loadingSession) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-200">
+        넝쿨OS 불러오는 중...
+      </div>
+    );
+  }
+
+  // --------------------------------
+  // 🔥 (5) 비로그인 상태: Public Home + Login
+  // --------------------------------
+  if (!session) {
+    return (
+      <Routes>
+        <Route
+          path="/"
+          element={<PublicHome onClickStart={handleClickStart} />}
+        />
+        <Route path="/login" element={<Login />} />
+      </Routes>
+    );
+  }
+
+  // --------------------------------
+  // 🔥 (6) 로그인 상태: 기존 헤더 + 메인 레이아웃 복구
+  // --------------------------------
   return (
     <div className="min-h-screen nk-bg nk-text">
-      
-      {/* 상단 헤더 */}
+      {/* 상단 헤더 (기존 그대로) */}
       <header className="border-b border-gray-200 bg-white/70 bg-white sticky top-0 z-50">
-        {/* 🌟 max-w-5xl로 넓게 설정 */}
         <nav className="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between text-sm md:text-base">
-          <Link to="/" className="font-bold nk-text-primary text-lg hover:opacity-80 transition-opacity">
+          <Link
+            to="/"
+            className="font-bold nk-text-primary text-lg hover:opacity-80 transition-opacity"
+          >
             넝쿨OS
           </Link>
-          
+
           <div className="flex gap-6 items-center">
-            <Link to="/" className="text-gray-600 hover:nk-text-primary font-medium transition-colors">
+            <Link
+              to="/"
+              className="text-gray-600 hover:nk-text-primary font-medium transition-colors"
+            >
               오늘
             </Link>
-            <Link to="/history" className="text-gray-600 hover:nk-text-primary font-medium transition-colors">
+            <Link
+              to="/history"
+              className="text-gray-600 hover:nk-text-primary font-medium transition-colors"
+            >
               히스토리
             </Link>
-            
-            {/* 🌟 로그아웃 버튼 추가 */}
-            <button 
+            <Link
+              to="/pro-support"
+              className="text-gray-600 hover:nk-text-primary font-medium transition-colors"
+            >
+              Pro 안내
+            </Link>
+
+            <button
               onClick={() => supabase.auth.signOut()}
               className="text-gray-500 hover:text-red-500 font-medium transition-colors"
             >
@@ -70,26 +153,9 @@ function App() {
       </header>
 
       {/* 메인 컨텐츠 영역 */}
-      {/* 🌟 max-w-5xl로 넓게 설정 */}
       <main className="max-w-5xl mx-auto px-5 py-10">
         <Routes>
-          <Route
-            path="/"
-            element={
-              <div className="space-y-10"> {/* 섹션 간격 넓힘 */}
-                <Hero />
-                
-                {/* 일기 입력란 카드 */}
-                <div className="bg-white rounded-3xl shadow-sm border border-blue-100 overflow-hidden">
-                  <DailyLogInput />
-                </div>
-
-                <StorySection />
-                <ModesSection />
-                <CtaSection />
-              </div>
-            }
-          />
+          <Route path="/" element={<DailyLogInput />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/pro-support" element={<ProSupportPage />} />
         </Routes>
