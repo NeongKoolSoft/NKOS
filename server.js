@@ -46,22 +46,23 @@ const MODE_GOALS = {
 console.log(`🚀 NKOS Backend running on port ${port}`);
 
 // =================================================================
-// 3. API 엔드포인트: LLM 기반 분석 + 행동 추천
+// 3. API 엔드포인트: LLM 기반 분석 + 행동 추천 (안전 버전)
 //    입력: { userLog }
-//    출력: { signals: {..}, recommendedAction: "..." }
+//    출력 (성공 시): { signals: {..}, recommendedAction: "..." }
+//    출력 (실패 시): { signals: null, recommendedAction: "" }  ← fallback
 // =================================================================
-app.post('/api/generate-action', async (req, res) => {
+app.post("/api/generate-action", async (req, res) => {
   console.log("📡 [행동 분석 + 추천 요청] 처리 시작...");
 
+  const { userLog } = req.body;
+
+  // 기본 검증
+  if (!userLog || typeof userLog !== "string") {
+    console.warn("⚠️ userLog 누락 또는 타입 오류:", userLog);
+    return res.json({ signals: null, recommendedAction: "" });
+  }
+
   try {
-    const { userLog } = req.body;
-
-    // 기본 검증
-    if (!userLog || typeof userLog !== "string") {
-      return res.status(400).json({ error: "userLog가 필요합니다." });
-    }
-
-    // 💡 LLM에게 점수 + 행동을 JSON으로 달라고 요청
     const prompt = `
 당신은 의사결정 모드 엔진 "NKOS"입니다.
 
@@ -106,63 +107,61 @@ app.post('/api/generate-action', async (req, res) => {
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.3,      // 패턴 점수는 안정적으로
+          temperature: 0.3,
           maxOutputTokens: 200,
         },
       }),
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      throw new Error(`Google API Error: ${JSON.stringify(err)}`);
+      const err = await response.text();
+      console.error("❌ Google API Error:", err);
+      // 여기서 바로 500 던지지 말고, 프론트가 fallback 쓰게 함
+      return res.json({ signals: null, recommendedAction: "" });
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new Error("API 응답이 비어있습니다.");
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!raw) {
+      console.error("❌ LLM 응답 비어 있음");
+      return res.json({ signals: null, recommendedAction: "" });
+    }
 
-    // 🔎 디버깅용으로 한번 찍어보기 (원하면 유지)
-    console.log("🔍 LLM raw response:\n", text);
+    console.log("🔍 LLM raw response:\n", raw);
 
-    // 🔧 1) 코드블럭/잡다한 텍스트 제거하고 JSON 부분만 추출
-    let jsonStr;
-    const trimmed = text.trim();
-
-    // "{" 와 "}" 위치를 찾아서 그 사이만 잘라내기
+    // 코드블럭/설명 제거 후 JSON 부분만 추출
+    const trimmed = raw.trim();
     const start = trimmed.indexOf("{");
     const end = trimmed.lastIndexOf("}");
-
     if (start === -1 || end === -1) {
-    throw new Error("JSON 본문을 찾지 못했습니다: " + trimmed);
+      console.error("❌ JSON 본문 위치를 찾지 못함:", trimmed);
+      return res.json({ signals: null, recommendedAction: "" });
     }
 
-    jsonStr = trimmed.slice(start, end + 1);        
+    const jsonStr = trimmed.slice(start, end + 1);
 
-    // 🔧 2) JSON 파싱
     let parsed;
     try {
-    parsed = JSON.parse(jsonStr);
+      parsed = JSON.parse(jsonStr);
     } catch (e) {
-    console.error("❌ JSON 파싱 실패:", jsonStr);
-    throw new Error("JSON 파싱 실패: " + e.message);
+      console.error("❌ JSON 파싱 실패:", jsonStr, e);
+      return res.json({ signals: null, recommendedAction: "" });
     }
 
-    // 최소 형식 검증
     if (!parsed.signals || typeof parsed.recommendedAction !== "string") {
-      throw new Error("응답 형식이 올바르지 않습니다: " + text);
+      console.error("❌ JSON 형식 오류:", parsed);
+      return res.json({ signals: null, recommendedAction: "" });
     }
 
-    // ✅ 프론트가 기대하는 형태 그대로 반환
-    //    { signals, recommendedAction }
-    res.json(parsed);
+    // ✅ 정상: 프론트가 그대로 사용하는 형태
     console.log("✅ [완료] 분석 + 추천 결과 전송됨");
-
+    return res.json(parsed);
   } catch (error) {
-    console.error("❌ [오류]", error);
-    res.status(500).json({ error: "서버 오류 발생" });
+    console.error("❌ [핸들러 내부 오류]", error);
+    // 여기도 500 대신 fallback
+    return res.json({ signals: null, recommendedAction: "" });
   }
 });
-
 
 // =================================================================
 // 4. API 엔드포인트: 리포트 생성
