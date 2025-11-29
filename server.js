@@ -56,7 +56,7 @@ app.post('/api/generate-action', async (req, res) => {
 
         const prompt = `
             ## 역할
-            당신은 의사결정 모드 엔진 'NungleOS'입니다.
+            당신은 의사결정 모드 엔진 'NKOS'입니다.
             ## 제약조건
             1. 한국어로 40자~60자 이내의 한 문장으로 작성하세요.
             2. 구체적인 행동을 지시하세요.
