@@ -130,23 +130,22 @@ export function computeScores(signals, patternBoosts, prevMode) {
   return adjusted;
 }
 
-// signals + patternBoosts + prevMode → bestMode
 export function decideMode(signals, patternBoosts, prevMode) {
+  // (1) 점수 계산
   const scores = computeScores(signals, patternBoosts, prevMode);
 
-  let bestMode = "DECISIVE";
-  let bestScore = -Infinity;
+  // (2) 최고 점수 모드 계산
+  const entries = Object.entries(scores);
+  entries.sort((a, b) => b[1] - a[1]); // 점수 내림차순
+  const [bestMode, bestScore] = entries[0];
 
-  MODES.forEach((mode) => {
-    if (scores[mode] > bestScore) {
-      bestScore = scores[mode];
-      bestMode = mode;
-    }
-  });
+  // (3) 이전 모드 안정화 로직
+  if (prevMode && scores[prevMode] >= bestScore - 1) {
+    return prevMode; // 이전 모드 유지
+  }
 
   return bestMode;
 }
-
 // 텍스트 + 이전 모드 → 오늘 모드
 export function decideModeFromText(text, prevMode) {
   const signals = extractSignals(text);
