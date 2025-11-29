@@ -14,7 +14,9 @@ import Onboarding from "./Onboarding";
 
 import { useNavigate } from "react-router-dom";
 
-const API_URL = '/api/generate-action';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://nkos.onrender.com";
+const API_URL = `${API_BASE_URL}/api/generate-action`;
+
 const NEXT_LEVEL_XP = 50;
 
 // 모드 라벨 맵
