@@ -46,66 +46,123 @@ const MODE_GOALS = {
 console.log(`🚀 NKOS Backend running on port ${port}`);
 
 // =================================================================
-// 3. API 엔드포인트: 행동 추천
+// 3. API 엔드포인트: LLM 기반 분석 + 행동 추천
+//    입력: { userLog }
+//    출력: { signals: {..}, recommendedAction: "..." }
 // =================================================================
 app.post('/api/generate-action', async (req, res) => {
-    console.log("📡 [행동 추천 요청] 처리 시작...");
-    
-    try {
-        const { finalMode, signals, userLog } = req.body;
-        const modeGoal = MODE_GOALS[finalMode] || '행동 추천';
-        const signalsString = Object.entries(signals || {}).map(([k, v]) => `- ${k}: ${v}/5`).join('\n');
+  console.log("📡 [행동 분석 + 추천 요청] 처리 시작...");
 
-        const prompt = `
-            ## 역할
-            당신은 의사결정 모드 엔진 'NKOS'입니다.
-            ## 제약조건
-            1. 한국어로 40자~60자 이내의 한 문장으로 작성하세요.
-            2. 구체적인 행동을 지시하세요.
-            ## 분석 맥락
-            - 모드: ${finalMode}
-            - 목표: ${modeGoal}
-            - 신호: ${signalsString}
-            ## 사용자 기록
-            "${userLog}"
-            ## 요청사항
-            위 내용을 바탕으로 지금 당장 할 수 있는 작은 행동 하나를 추천해주세요.
-        `;
+  try {
+    const { userLog } = req.body;
 
-        // 구글 API 호출 (gemini-2.0-flash + 헤더 인증)
-        const modelName = "gemini-2.0-flash";
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': apiKey
-            },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.7, maxOutputTokens: 100 }
-            })
-        });
-
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(`Google API Error: ${JSON.stringify(err)}`);
-        }
-
-        const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!text) throw new Error("API 응답이 비어있습니다.");
-
-        res.json({ action: text.trim() });
-        console.log("✅ [완료] 행동 추천 결과 전송됨");
-
-    } catch (error) {
-        console.error("❌ [오류]", error);
-        res.status(500).json({ error: '서버 오류 발생' });
+    // 기본 검증
+    if (!userLog || typeof userLog !== "string") {
+      return res.status(400).json({ error: "userLog가 필요합니다." });
     }
+
+    // 💡 LLM에게 점수 + 행동을 JSON으로 달라고 요청
+    const prompt = `
+당신은 의사결정 모드 엔진 "NKOS"입니다.
+
+[모드 목록]
+- DELAY
+- STABILIZE
+- SIMPLIFY
+- DECISIVE
+- EXPLORATORY
+- REFLECT
+
+[사용자 기록]
+"${userLog}"
+
+1단계) 각 모드에 대해 0~5점으로 점수를 매기세요.
+2단계) 지금 이 사용자에게 도움이 되는 구체적인 행동을 한 문장으로 제안하세요.
+
+아래 JSON 형식으로만 응답하세요. 설명 문장은 쓰지 마세요.
+
+{
+  "signals": {
+    "DELAY": 0,
+    "STABILIZE": 0,
+    "SIMPLIFY": 0,
+    "DECISIVE": 0,
+    "EXPLORATORY": 0,
+    "REFLECT": 0
+  },
+  "recommendedAction": "여기에 한국어 한 문장으로 행동 제안을 적으세요."
+}
+`;
+
+    const modelName = "gemini-2.0-flash";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.3,      // 패턴 점수는 안정적으로
+          maxOutputTokens: 200,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(`Google API Error: ${JSON.stringify(err)}`);
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error("API 응답이 비어있습니다.");
+
+    // 🔎 디버깅용으로 한번 찍어보기 (원하면 유지)
+    console.log("🔍 LLM raw response:\n", text);
+
+    // 🔧 1) 코드블럭/잡다한 텍스트 제거하고 JSON 부분만 추출
+    let jsonStr;
+    const trimmed = text.trim();
+
+    // "{" 와 "}" 위치를 찾아서 그 사이만 잘라내기
+    const start = trimmed.indexOf("{");
+    const end = trimmed.lastIndexOf("}");
+
+    if (start === -1 || end === -1) {
+    throw new Error("JSON 본문을 찾지 못했습니다: " + trimmed);
+    }
+
+    jsonStr = trimmed.slice(start, end + 1);        
+
+    // 🔧 2) JSON 파싱
+    let parsed;
+    try {
+    parsed = JSON.parse(jsonStr);
+    } catch (e) {
+    console.error("❌ JSON 파싱 실패:", jsonStr);
+    throw new Error("JSON 파싱 실패: " + e.message);
+    }
+
+    // 최소 형식 검증
+    if (!parsed.signals || typeof parsed.recommendedAction !== "string") {
+      throw new Error("응답 형식이 올바르지 않습니다: " + text);
+    }
+
+    // ✅ 프론트가 기대하는 형태 그대로 반환
+    //    { signals, recommendedAction }
+    res.json(parsed);
+    console.log("✅ [완료] 분석 + 추천 결과 전송됨");
+
+  } catch (error) {
+    console.error("❌ [오류]", error);
+    res.status(500).json({ error: "서버 오류 발생" });
+  }
 });
+
 
 // =================================================================
 // 4. API 엔드포인트: 리포트 생성

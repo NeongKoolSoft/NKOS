@@ -13,7 +13,9 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://nkos.onrender.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+
 const API_REPORT_URL = `${API_BASE_URL}/api/generate-report`;
 
 // 한 번에 스크롤로 불러올 로그 개수

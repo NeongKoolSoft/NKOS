@@ -14,7 +14,10 @@ import Onboarding from "./Onboarding";
 
 import { useNavigate } from "react-router-dom";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://nkos.onrender.com";
+// 기본은 로컬(개발용), 배포에서는 Vercel 환경변수로 덮어씀
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+
 const API_URL = `${API_BASE_URL}/api/generate-action`;
 
 const NEXT_LEVEL_XP = 50;
@@ -533,7 +536,7 @@ const buildModeInsight = (currentMode, logs) => {
                   카카오톡 후원 안내
                 </div>
                 <p>1. 카카오톡 &gt; 송금 메뉴로 들어갑니다.</p>
-                <p>2. 넝쿨 계정 또는 아래 계좌로 송금해주세요.</p>
+                <p>2. 아래 계좌로 송금 부탁 드립니다.</p>
                 <p className="mt-1">
                   - 계좌:{" "}
                   <span className="font-mono">
