@@ -8,7 +8,7 @@ export default function Login() {
         provider: 'google',
         options: {
           // 모바일(PWA)에서도 로그인 후 다시 앱으로 돌아오게 하는 설정
-          redirectTo: `${window.location.origin}`,
+          redirectTo: window.location.origin
         }
       });
       if (error) throw error;
