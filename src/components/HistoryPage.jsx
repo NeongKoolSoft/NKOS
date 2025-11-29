@@ -1,417 +1,427 @@
-// src/components/HistoryPage.jsx
-import { useEffect, useMemo, useState } from "react";
+// ============================================================================
+// 📄 HistoryPage.jsx
+// 넝쿨OS — 전체 히스토리 화면
+// 기능:
+//   ✔ Supabase에서 사용자 로그 로드
+//   ✔ 무료/Pro 플랜 구분에 따른 최대 조회 가능 범위 제한
+//   ✔ 인피니트 스크롤 (스크롤 시 추가로 레코드 로드)
+//   ✔ 주간 AI 리포트 생성 모달
+//   ✔ ‘맨 위로’ 플로팅 버튼
+//   ✔ 최근 기록 기반 한 줄 요약
+// ============================================================================
 
-const STORAGE_KEY = "nuckleos_logs_v1";
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "../lib/supabase";
 
+// AI 리포트 API 엔드포인트
+const API_REPORT_URL = "/api/generate-report";
+
+
+// 한 번에 스크롤로 불러올 로그 개수
+const PAGE_SIZE = 30;
+
+// ---------------------------------------------
+// 모드 라벨 (히스토리 화면용 표시)
+// ---------------------------------------------
 const MODE_LABEL = {
-  DELAY: "DELAY : 결정 보류",
-  STABILIZE: "STABILIZE : 안정 회복",
-  REFLECT: "REFLECT : 성찰/내면정리",
-  SIMPLIFY: "SIMPLIFY : 단순화",
-  DECISIVE: "DECISIVE : 결단/실행",
-  EXPLORATORY: "EXPLORATORY : 탐색/실험",
+  DELAY: "결정 보류 모드 (Delay)",
+  STABILIZE: "안정 회복 모드 (Stabilize)",
+  SIMPLIFY: "단순화 모드 (Simplify)",
+  DECISIVE: "결단/실행 모드 (Decisive)",
+  EXPLORATORY: "탐색/실험 모드 (Exploratory)",
+  REFLECT: "성찰/내면 정리 모드 (Reflect)",
 };
 
-// 리포트용 모드 해석 문장
-const MODE_SUMMARY_TEXT = {
-  DELAY:
-    "최근에는 결정을 미루고 상황을 더 지켜보는 경향이 많았습니다. 큰 결정보다는 에너지 회복과 정리부터 하는 것이 좋습니다.",
-  STABILIZE:
-    "최근에는 기준을 다시 잡고, 생활·업무를 안정시키는 흐름이 많았습니다. 급한 확장보다 루틴을 다지는 시기에 가깝습니다.",
-  REFLECT:
-    "최근에는 스스로를 돌아보고, 기준과 감정을 정리하는 흐름이 강했습니다. 성찰과 내면 정리에 좋은 타이밍입니다.",
-  SIMPLIFY:
-    "최근에는 복잡한 것들을 줄이고, 우선순위를 정리하는 흐름이 두드러집니다. 해야 할 일을 가볍게 줄이기에 좋은 시기입니다.",
-  DECISIVE:
-    "최근에는 결단과 실행 중심의 흐름이 강했습니다. 미뤄둔 일을 밀어붙이거나, 중요한 결정을 내리기에 좋은 타이밍입니다.",
-  EXPLORATORY:
-    "최근에는 새로운 시도와 탐색의 비중이 높았습니다. 실험과 테스트, 아이디어 발산에 잘 맞는 구간입니다.",
-};
-
-// "2025-11-24" 또는 "2025. 11. 24." 같은 걸 비교용 YYYY-MM-DD로 변환
-function normalizeDateKey(raw) {
-  if (!raw) return "";
-
-  // 이미 YYYY-MM-DD 형식이면 그대로
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-
-  // "2025. 11. 24." 형식 처리
-  const m = raw.match(/^(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
-  if (m) {
-    const [, y, mo, d] = m;
-    const mm = String(mo).padStart(2, "0");
-    const dd = String(d).padStart(2, "0");
-    return `${y}-${mm}-${dd}`;
+// ============================================================================
+// 🔍 최근 N개 로그 요약 생성 (히스토리 상단 한 줄 요약 카드)
+// ============================================================================
+function buildHistorySummary(logs, count = 7) {
+  if (!logs || logs.length === 0) {
+    return "아직 기록이 없어요. 오늘의 첫 기록을 남겨볼까요?";
   }
 
-  // 기타 포맷은 Date로 한 번 시도
-  const d = new Date(raw);
-  if (!Number.isNaN(d.getTime())) {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
+  // 최신 N개만 추출
+  const recent = logs.slice(0, count);
+  const total = recent.length;
+
+  // 모드별 개수 집계
+  const modeCounts = recent.reduce((acc, log) => {
+    if (!log.mode) return acc;
+    acc[log.mode] = (acc[log.mode] || 0) + 1;
+    return acc;
+  }, {});
+
+  const entries = Object.entries(modeCounts);
+  if (entries.length === 0) {
+    return "아직 모드 데이터가 부족합니다. 기록이 좀 더 쌓이면 흐름을 알려드릴게요.";
   }
 
-  return "";
+  // 최다 모드 찾기
+  const [topMode, topCount] = entries.sort((a, b) => b[1] - a[1])[0];
+  const percent = Math.round((topCount / total) * 100);
+  const label = MODE_LABEL[topMode] || topMode;
+
+  if (total <= 2) {
+    return `최근 ${total}개의 기록 중 "${label}"이 ${topCount}회 나타났어요.`;
+  }
+
+  return `최근 ${total}개 기록 중 "${label}" 모드가 ${topCount}회(${percent}%)로 가장 많이 나타났어요.`;
 }
 
+// ============================================================================
+// ⭐ 메인 컴포넌트
+// ============================================================================
 function HistoryPage() {
-  const [logs, setLogs] = useState([]);
-  const [startDate, setStartDate] = useState(""); // yyyy-MM-dd
-  const [endDate, setEndDate] = useState(""); // yyyy-MM-dd
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [report, setReport] = useState(null);
+  // ---------------------------------------------
+  // 기본 로그 및 사용자 상태
+  // ---------------------------------------------
+  const [logs, setLogs] = useState([]);              // 전체 로그
+  const [logCount, setLogCount] = useState(0);        // 전체 로그 개수
+  const [userStage, setUserStage] = useState("USER"); // USER | READY_FOR_PRO | PRO
+  const [isLoadingLogs, setIsLoadingLogs] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
-  // 초기 데이터 로드
+  // ---------------------------------------------
+  // 인피니트 스크롤: 현재 화면에 표시 중인 로그 개수
+  // ---------------------------------------------
+  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
+
+  // sentinel 용 ref (화면 하단 감지)
+  const loaderRef = useRef(null);
+
+  // ---------------------------------------------
+  // 맨 위로 버튼 표시 여부
+  // ---------------------------------------------
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  // ---------------------------------------------
+  // AI 리포트 모달 상태
+  // ---------------------------------------------
+  const [showModal, setShowModal] = useState(false);
+  const [reportText, setReportText] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  // ============================================================================
+  // 📥 Supabase에서 사용자 로그 로드
+  // ============================================================================
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        // 최신이 위로 오도록
-        setLogs([...parsed].reverse());
+    const fetchLogs = async () => {
+      setIsLoadingLogs(true);
+      setLoadError("");
+
+      try {
+        // 현재 로그인한 사용자 정보
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError) throw userError;
+
+        if (!user) {
+          setLoadError("로그인이 필요합니다.");
+          return;
+        }
+
+        // 해당 사용자의 로그 전체 조회 (최신순)
+        const { data, error } = await supabase
+          .from("logs")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("id", { ascending: false });
+
+        if (error) throw error;
+
+        setLogs(data);
+        setLogCount(data.length);
+      } catch (e) {
+        console.error("Failed to load logs:", e);
+        setLoadError("기록을 불러오는 중 문제가 발생했습니다.");
+      } finally {
+        setIsLoadingLogs(false);
       }
-    } catch (e) {
-      console.error("Failed to load logs from localStorage", e);
-    }
+    };
+
+    fetchLogs();
   }, []);
 
-  // 기간 필터 적용된 로그
-  const filteredLogs = useMemo(() => {
-    return logs.filter((log) => {
-      const dateKey = normalizeDateKey(log.date || "");
-      if (!dateKey) return false;
+  // ============================================================================
+  // 📊 로그 수 → 사용자 스테이지 (무료/Pro/전환 권장)
+  // ============================================================================
+  useEffect(() => {
+    // TODO: 추후 user_stats.plan 등으로 Pro 여부 반영
+    const isPro = false;
 
-      if (startDate && dateKey < startDate) return false;
-      if (endDate && dateKey > endDate) return false;
-
-      return true;
-    });
-  }, [logs, startDate, endDate]);
-
-  // 모드 통계 (필터된 로그 기준)
-  const modeStats = filteredLogs.reduce(
-    (acc, log) => {
-      if (log.mode && acc[log.mode] != null) {
-        acc[log.mode] += 1;
-      }
-      return acc;
-    },
-    {
-      DELAY: 0,
-      STABILIZE: 0,
-      REFLECT: 0,
-      SIMPLIFY: 0,
-      DECISIVE: 0,
-      EXPLORATORY: 0,
-    }
-  );
-
-  const total = filteredLogs.length || 1; // 0으로 나누기 방지
-
-  // 현재 목록 전체 선택 여부
-  const allVisibleSelected =
-    filteredLogs.length > 0 &&
-    filteredLogs.every((log) => selectedIds.has(log.id));
-
-  const toggleSelect = (id) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleSelectAllVisible = () => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (allVisibleSelected) {
-        // 전체 해제
-        filteredLogs.forEach((log) => next.delete(log.id));
-      } else {
-        // 전체 선택
-        filteredLogs.forEach((log) => {
-          if (log.id != null) next.add(log.id);
-        });
-      }
-      return next;
-    });
-  };
-
-  const handleDeleteSelected = () => {
-    if (selectedIds.size === 0) {
-      alert("삭제할 기록을 먼저 선택해 주세요.");
+    if (isPro) {
+      setUserStage("PRO");
       return;
     }
 
-    if (!window.confirm("선택한 기록을 정말 삭제할까요?")) return;
+    if (logCount >= 30) setUserStage("READY_FOR_PRO");
+    else setUserStage("USER");
+  }, [logCount]);
 
-    const remaining = logs.filter((log) => !selectedIds.has(log.id));
-    setLogs(remaining);
-    setSelectedIds(new Set());
+  // ============================================================================
+  // 📌 플랜 제한: USER/READY_FOR_PRO → 최대 30개까지만 조회 가능
+  // ============================================================================
+  let visibleCount = logs.length;
+  if (userStage === "USER" || userStage === "READY_FOR_PRO") {
+    visibleCount = Math.min(logs.length, 30);
+  }
 
-    // 저장은 원래 순서(오래된 → 최신)로 맞춰서 저장
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...remaining].reverse()));
-  };
+  const visibleLogs = logs.slice(0, visibleCount); // 실제 렌더링 가능 영역
+  const hasLockedLogs = logs.length > visibleLogs.length;
 
-  const handleResetFilter = () => {
-    setStartDate("");
-    setEndDate("");
-    setReport(null);
-  };
+  // ============================================================================
+  // 🔄 visibleLogs 개수가 변경되면 표시 개수 초기화
+  // ============================================================================
+  useEffect(() => {
+    // displayCount = min(기본페이지, 실제 표시 가능한 만큼)
+    setDisplayCount(Math.min(PAGE_SIZE, visibleLogs.length));
+  }, [visibleLogs.length]);
 
-  // 🔹 리포트 생성
-  const handleGenerateReport = () => {
-    if (filteredLogs.length === 0) {
-      alert("해당 기간에 기록이 없습니다. 먼저 기록을 남겨주세요.");
+  // 최종 렌더링할 로그 목록
+  const renderedLogs = visibleLogs.slice(0, displayCount);
+
+  // ============================================================================
+  // 📡 인피니트 스크롤: sentinel이 보이면 다음 PAGE_SIZE만큼 로드
+  // ============================================================================
+  useEffect(() => {
+    if (!loaderRef.current) return;
+    if (renderedLogs.length >= visibleLogs.length) return; // 더 불러올 게 없으면 중지
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting) {
+          setDisplayCount((prev) =>
+            Math.min(prev + PAGE_SIZE, visibleLogs.length)
+          );
+        }
+      },
+      { threshold: 1.0 }
+    );
+
+    observer.observe(loaderRef.current);
+    return () => observer.disconnect();
+  }, [renderedLogs.length, visibleLogs.length]);
+
+  // ============================================================================
+  // ⬆ 스크롤 위치 → 맨 위로 버튼 표시
+  // ============================================================================
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // ============================================================================
+  // 🌱 주간 AI 리포트 생성
+  // ============================================================================
+  const handleGenerateReport = async () => {
+    if (logs.length < 2) {
+      alert("분석할 기록이 부족합니다.(최소 2개 이상)");
       return;
     }
 
-    // 실제 기간: 필터된 로그들 기준 최소/최대 날짜
-    const dateKeys = filteredLogs
-      .map((log) => normalizeDateKey(log.date || ""))
-      .filter(Boolean)
-      .sort();
+    setIsLoading(true);
+    setShowModal(true);
 
-    const from = startDate || dateKeys[0];
-    const to = endDate || dateKeys[dateKeys.length - 1];
+    try {
+      // AI는 과거→현재 순을 선호하므로 reverse
+      const recentLogs = logs.slice(0, 7).reverse();
 
-    // 최다 모드 찾기
-    let topMode = null;
-    let topCount = 0;
-    Object.entries(modeStats).forEach(([mode, count]) => {
-      if (count > topCount) {
-        topCount = count;
-        topMode = mode;
-      }
-    });
+      const response = await fetch(API_REPORT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ logs: recentLogs }),
+      });
 
-    const totalCount = filteredLogs.length;
-    const topPercent =
-      totalCount > 0 ? Math.round((topCount / totalCount) * 100) : 0;
+      if (!response.ok) throw new Error("서버 오류");
 
-    // 대표 기록 3개 (최신순)
-    const samples = filteredLogs.slice(0, 3).map((log) => ({
-      id: log.id,
-      date: log.date,
-      mode: log.mode,
-      text: log.text,
-    }));
-
-    setReport({
-      from,
-      to,
-      totalCount,
-      topMode,
-      topPercent,
-      samples,
-    });
+      const data = await response.json();
+      setReportText(data.report); // AI 글
+    } catch (err) {
+      console.error("Report Error:", err);
+      setReportText("리포트를 생성하지 못했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleClearReport = () => {
-    setReport(null);
+  // 모달 닫기
+  const closeModal = () => {
+    setShowModal(false);
+    setReportText("");
   };
 
+  // ============================================================================
+  // 🖥 UI 렌더링
+  // ============================================================================
   return (
-    <section className="py-8 px-4">
+    <section className="py-6 px-5 pb-20">
       <div className="max-w-3xl mx-auto">
-        <h1 className="text-2xl md:text-3xl font-bold mb-4 nk-text-primary">
-          기록 히스토리
-        </h1>
-        <p className="text-sm md:text-base text-gray-600 mb-6">
-          지금까지 남긴 하루 기록과 의사결정 모드의 목록입니다.
-        </p>
 
-        {/* 기간 필터 */}
-        <div className="mb-4 p-4 rounded-lg bg-gray-50 border border-gray-200 text-xs md:text-sm">
-          <div className="font-semibold mb-2">기간별 조회</div>
-          <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-gray-600">시작일</span>
-              <input
-                type="date"
-                className="border border-gray-300 rounded px-2 py-1 text-xs md:text-sm"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-600">종료일</span>
-              <input
-                type="date"
-                className="border border-gray-300 rounded px-2 py-1 text-xs md:text-sm"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={handleResetFilter}
-              className="ml-auto md:ml-0 text-xs md:text-sm text-blue-600 underline whitespace-nowrap"
-            >
-              기간 초기화
-            </button>
-          </div>
+        {/* --------------------------------------------- */}
+        {/* 📌 제목 + AI 리포트 버튼 */}
+        {/* --------------------------------------------- */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="nk-title-main text-2xl font-bold">히스토리</h2>
+
+          <button
+            onClick={handleGenerateReport}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-full shadow-md"
+          >
+            ✨ 주간 리포트 분석
+          </button>
         </div>
 
-        {/* 모드 요약 */}
-        <div className="mb-6 p-4 rounded-lg bg-white border border-gray-200 text-xs md:text-sm">
-          <div className="font-semibold mb-2">모드 요약</div>
-          {filteredLogs.length === 0 ? (
-            <p className="text-gray-500">
-              해당 기간에 저장된 기록이 없습니다.
-            </p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 md:gap-4">
-              {Object.entries(modeStats).map(([mode, count]) => (
-                <div
-                  key={mode}
-                  className="p-2 rounded-md bg-nk-bg border border-nk-accent/40"
-                >
-                  <div className="text-[11px] md:text-xs font-semibold text-nk-primary mb-1">
-                    {mode}
-                  </div>
-                  <div className="text-sm md:text-base font-bold">
-                    {count}
-                  </div>
-                  <div className="text-[10px] md:text-xs text-gray-500">
-                    {Math.round((count / total) * 100)}%
-                  </div>
-                </div>
-              ))}
+        {/* --------------------------------------------- */}
+        {/* 🔍 최근 기록 요약 (한 줄) */}
+        {/* --------------------------------------------- */}
+        <div className="nk-card-soft mb-6 text-xs md:text-sm text-gray-700">
+          {buildHistorySummary(logs)}
+        </div>
+
+        {/* --------------------------------------------- */}
+        {/* 플랜 단계 안내 배너 */}
+        {/* --------------------------------------------- */}
+        <div className="mb-4">
+          {userStage === "USER" && logCount < 30 && (
+            <div className="nk-banner-soft text-xs md:text-sm">
+              지금까지 <strong>{logCount}개</strong>의 기록이 쌓였습니다.  
+              30개가 넘으면 넝쿨OS가 장기 흐름 분석을 제안할게요.
+            </div>
+          )}
+
+          {userStage === "READY_FOR_PRO" && (
+            <div className="nk-banner-strong text-xs md:text-sm">
+              기록이 <strong>{logCount}개</strong>를 넘었어요!  
+              현재 화면에선 최근 30개까지만 보이고,  
+              더 오래된 기록은 Pro 기능에서 열립니다.
             </div>
           )}
         </div>
 
-        {/* 선택/삭제 + 리포트 생성 툴바 */}
-        {filteredLogs.length > 0 && (
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3 text-xs md:text-sm gap-2">
-            <label className="flex items-center gap-1">
-              <input
-                type="checkbox"
-                checked={allVisibleSelected}
-                onChange={toggleSelectAllVisible}
-              />
-              <span>현재 목록 전체 선택</span>
-            </label>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleGenerateReport}
-                className="px-5 py-1 rounded-md bg-blue-600 text-white font-semibold text-xs md:text-sm"
-              >
-                출력
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteSelected}
-                className="px-5 py-1 rounded-md bg-blue-600 text-white font-semibold text-xs md:text-sm"
-              >
-                삭제
-              </button>
-              <span className="text-gray-500">
-                선택 {selectedIds.size}건 / 표시 {filteredLogs.length}건 (전체{" "}
-                {logs.length}건)
-              </span>
-            </div>
+        {/* --------------------------------------------- */}
+        {/* 로그 목록 / 로딩 / 에러 */}
+        {/* --------------------------------------------- */}
+        {isLoadingLogs ? (
+          <div className="text-center py-10 text-gray-400 text-sm">
+            기록을 불러오는 중입니다...
           </div>
+        ) : loadError ? (
+          <div className="text-center py-10 text-gray-400 text-sm">
+            {loadError}
+          </div>
+        ) : logs.length === 0 ? (
+          <div className="text-center py-10 text-gray-400">
+            아직 기록이 없습니다.
+          </div>
+        ) : (
+          <>
+            <ul className="space-y-4">
+              {renderedLogs.map((log) => (
+                <li key={log.id} className="nk-card text-sm md:text-base">
+                  <div className="flex justify-between mb-2">
+                    <span className="text-gray-400 text-xs">{log.date}</span>
+                    <span className="text-nk-primary font-bold text-xs bg-blue-50 px-2 py-1 rounded">
+                      {MODE_LABEL[log.mode] || log.mode}
+                    </span>
+                  </div>
+                  <p className="text-gray-700 whitespace-pre-line">{log.text}</p>
+
+                  {/* AI 액션(추천 행동)이 존재하는 경우만 표시 */}
+                  {log.ai_action && (
+                    <div className="mt-3 pt-3 border-t text-xs text-gray-500">
+                      💡 {log.ai_action}
+                    </div>
+                  )}
+                </li>
+              ))}
+
+              {/* 플랜 제한으로 잠긴 더 예전 로그 안내 */}
+              {hasLockedLogs &&
+                renderedLogs.length === visibleLogs.length && (
+                  <li className="nk-card text-xs md:text-sm text-gray-500 border-dashed border-gray-300">
+                    총 {logs.length}개 중{" "}
+                    <strong>{logs.length - visibleLogs.length}개</strong>의 기록은  
+                    현재 플랜에서 숨겨져 있어요.
+                  </li>
+                )}
+            </ul>
+
+            {/* 인피니트 스크롤 sentinel */}
+            <div
+              ref={loaderRef}
+              className="mt-4 h-8 text-center text-[11px] text-gray-400"
+            >
+              {renderedLogs.length < visibleLogs.length
+                ? "스크롤하면 더 많은 기록을 불러옵니다..."
+                : hasLockedLogs
+                ? "현재 플랜 기준으로 볼 수 있는 기록을 모두 불러왔어요."
+                : "모든 기록을 불러왔어요."}
+            </div>
+          </>
         )}
 
-        {/* 리포트 카드 */}
-        {report && (
-          <div className="mb-6 p-4 rounded-lg bg-white border border-blue-200 text-xs md:text-sm">
-            <div className="flex items-center justify-between mb-2">
-              <div className="font-semibold text-blue-700">
-                기간별 리포트 ({report.from} ~ {report.to})
+        {/* --------------------------------------------- */}
+        {/* 🌱 AI 리포트 모달 */}
+        {/* --------------------------------------------- */}
+        {showModal && (
+          <div className="nk-modal-backdrop" onClick={closeModal}>
+            <div
+              className="nk-modal-content"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between mb-3 border-b pb-2">
+                <h3 className="text-lg font-bold text-indigo-700">
+                  🌱 주간 넝쿨 리포트
+                </h3>
+                <button className="text-gray-400" onClick={closeModal}>
+                  ✕
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleClearReport}
-                className="text-[11px] text-gray-500 underline"
-              >
-                리포트 숨기기
-              </button>
-            </div>
-            <div className="mb-2">
-              <div>
-                전체 기록 수:{" "}
-                <span className="font-semibold">{report.totalCount}</span>건
-              </div>
-              {report.topMode && (
-                <div>
-                  가장 많이 나타난 모드:{" "}
-                  <span className="font-semibold">
-                    {MODE_LABEL[report.topMode] || report.topMode}
-                  </span>{" "}
-                  (
-                  <span className="font-semibold">
-                    {report.topPercent}%
-                  </span>
-                  )
+
+              {isLoading ? (
+                <div className="text-center py-10">
+                  <div className="nk-spinner mb-4"></div>
+                  <p className="animate-pulse text-gray-600">
+                    기록을 분석하는 중입니다...
+                  </p>
+                </div>
+              ) : (
+                <div className="prose-sm text-gray-700 whitespace-pre-line leading-relaxed">
+                  {reportText}
                 </div>
               )}
+
+              {!isLoading && (
+                <button
+                  className="nk-btn-primary w-full mt-4 py-2 rounded-lg"
+                  onClick={closeModal}
+                >
+                  확인
+                </button>
+              )}
             </div>
-            {report.topMode && (
-              <p className="mb-3 text-gray-700">
-                {MODE_SUMMARY_TEXT[report.topMode]}
-              </p>
-            )}
-            {report.samples.length > 0 && (
-              <div>
-                <div className="font-semibold mb-1">대표 기록</div>
-                <ul className="space-y-1">
-                  {report.samples.map((s) => (
-                    <li key={s.id} className="text-gray-700">
-                      <span className="text-[11px] text-gray-500 mr-2">
-                        {s.date}
-                      </span>
-                      <span className="text-[11px] text-blue-700 mr-1">
-                        {MODE_LABEL[s.mode] || s.mode}
-                      </span>
-                      <span>{s.text}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
         )}
 
-        {/* 히스토리 리스트 */}
-        {filteredLogs.length === 0 && (
-          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500">
-            해당 기간에 저장된 기록이 없습니다. 메인 화면에서 오늘의 기록을
-            먼저 남겨보세요.
-          </div>
-        )}
-
-        {filteredLogs.length > 0 && (
-          <ul className="space-y-3 text-sm md:text-base">
-            {filteredLogs.map((log) => (
-              <li
-                key={log.id}
-                className="p-3 rounded-lg border border-gray-200 bg-white flex flex-col gap-1"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(log.id)}
-                      onChange={() => toggleSelect(log.id)}
-                    />
-                    <span className="text-xs text-gray-500">{log.date}</span>
-                  </div>
-                  <span className="text-[11px] md:text-xs text-blue-700 font-semibold">
-                    {MODE_LABEL[log.mode] || log.mode}
-                  </span>
-                </div>
-                <p className="text-gray-800 whitespace-pre-line">{log.text}</p>
-              </li>
-            ))}
-          </ul>
+        {/* --------------------------------------------- */}
+        {/* ⬆ 맨 위로 플로팅 버튼 */}
+        {/* --------------------------------------------- */}
+        {showScrollTop && (
+          <button
+            onClick={() =>
+              window.scrollTo({ top: 0, behavior: "smooth" })
+            }
+            className="fixed bottom-6 right-4 z-40 bg-white border px-3 py-2 rounded-full shadow-lg text-xs"
+          >
+            ⬆ 맨 위로
+          </button>
         )}
       </div>
     </section>

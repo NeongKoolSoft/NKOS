@@ -1,8 +1,129 @@
 #root {
-  max-width: 1280px;
+  max-width: 960px;
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
+
+  /* ---------- 색, 기본 토큰 ---------- */
+  --nk-primary: #4f46e5;       /* 메인 보라/인디고 */
+  --nk-primary-soft: #eef2ff;
+  --nk-bg-soft: #f8fafc;
+  --nk-text-main: #0f172a;
+  --nk-text-sub: #6b7280;
+  --nk-border-soft: #e5e7eb;  
+}
+
+/* ---------- 공통 카드 ---------- */
+.nk-card {
+  background: #ffffff;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 18px 20px;
+  box-shadow: 0 14px 35px rgba(15, 23, 42, 0.06);
+}
+
+/* 더 연한 카드 (그래프, 서브정보용) */
+.nk-card-soft {
+  background: #f9fafb;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  padding: 14px 16px;
+}
+
+/* ---------- 버튼 ---------- */
+.nk-btn-primary {
+  background: linear-gradient(135deg, var(--nk-primary), #6366f1);
+  color: #ffffff;
+  border-radius: 9999px;
+  border: none;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 12px 24px rgba(79, 70, 229, 0.35);
+  transform: translateY(0);
+  transition:
+    transform 0.12s ease-out,
+    box-shadow 0.12s ease-out,
+    filter 0.12s ease-out;
+}
+
+
+
+.nk-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 32px rgba(79, 70, 229, 0.45);
+  filter: brightness(1.03);
+}
+
+.nk-btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 8px 18px rgba(79, 70, 229, 0.5);
+  filter: brightness(0.97);
+}
+
+/* ---------- 배너 (여정 안내 / Pro 안내) ---------- */
+.nk-banner-soft {
+  background: #f9fafb;
+  border-radius: 16px;
+  padding: 10px 14px;
+  border: 1px dashed rgba(148, 163, 184, 0.7);
+  color: var(--nk-text-sub);
+}
+
+.nk-banner-strong {
+  background: linear-gradient(135deg, #eef2ff, #e0f2fe);
+  border-radius: 16px;
+  padding: 10px 14px;
+  border: 1px solid rgba(79, 70, 229, 0.35);
+  color: #1e293b;
+}
+
+/* Pro 전용 축하 배너 */
+.nk-banner-pro {
+  background: linear-gradient(135deg, #fef3c7, #e0f2fe);
+  border-radius: 18px;
+  padding: 12px 16px;
+  border: 1px solid rgba(234, 179, 8, 0.5);
+  box-shadow: 0 14px 30px rgba(234, 179, 8, 0.25);
+}
+
+/* ---------- 텍스트 입력 ---------- */
+.nk-textarea {
+  width: 100%;
+  min-height: 110px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--nk-border-soft);
+  background: #ffffff;
+  font-size: 0.9rem;
+  color: var(--nk-text-main);
+  resize: vertical;
+  outline: none;
+  transition:
+    border-color 0.12s ease-out,
+    box-shadow 0.12s ease-out,
+    background 0.12s ease-out;
+}
+
+.nk-textarea::placeholder {
+  color: #9ca3af;
+}
+
+.nk-textarea:focus {
+  border-color: var(--nk-primary);
+  box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.15),
+    0 12px 28px rgba(148, 163, 184, 0.35);
+  background: #ffffff;
+}
+
+/* ---------- 타이틀/서브타이틀 ---------- */
+.nk-title-main {
+  color: var(--nk-text-main);
+  letter-spacing: -0.02em;
+}
+
+.nk-subtitle {
+  color: var(--nk-text-sub);
+  font-size: 0.85rem;
 }
 
 .logo {
@@ -40,3 +161,4 @@
 .read-the-docs {
   color: #888;
 }
+
