@@ -2,8 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 // .env 파일에서 주소와 키를 가져옵니다.
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = "https://uizkygoasnczxhmvzcbh.supabase.co";
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpemt5Z29hc25jenhobXZ6Y2JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzMDUyNDksImV4cCI6MjA3OTg4MTI0OX0.Dxwn73XnnNZbvp3k9BaKsWZXoeEVdaKHkdYnwJVVzUc";
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error("❌ Supabase 환경 변수가 없습니다. .env 파일을 확인하세요.");
