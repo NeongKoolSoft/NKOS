@@ -9,8 +9,9 @@ import NKChart from "./NKChart";
 import VineLevel from "./VineLevel";
 import { useNavigate } from "react-router-dom";
 import { formatKoreanTime } from "../utils/time";
-import Hero from "./Hero";          // :contentReference[oaicite:0]{index=0}
-import ModesSection from "./ModesSection";  // :contentReference[oaicite:1]{index=1}
+import Hero from "./Hero";
+import ModesSection from "./ModesSection";
+import StorySection from "./StorySection";
 
 // 기본은 로컬(개발용), 배포에서는 Vercel 환경변수로 덮어씀
 const API_BASE_URL =
@@ -39,6 +40,7 @@ const actionsForMode = (mode) => {
       return ["작은 일 하나만 정리하고 그 이상은 욕심내지 마세요."];
     case "REFLECT":
       return ["감정과 생각을 5줄 정도 글로 적어보세요."];
+
     case "SIMPLIFY":
       return ["지금 떠오르는 선택지를 최대 3개로 줄여보세요."];
     case "DECISIVE":
@@ -196,159 +198,159 @@ function DailyLogInput() {
   //    - XP / 레벨 업데이트
   //    - logCount 업데이트 + Pro 모달 트리거
   // ======================================================
-// 저장 중 상태
-const [isSaving, setIsSaving] = useState(false);
+  // 저장 중 상태
+  const [isSaving, setIsSaving] = useState(false);
 
-const handleSave = async () => {
-  const trimmed = text.trim();
-  if (!trimmed) return;
+  const handleSave = async () => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
 
-  setIsSaving(true);
+    setIsSaving(true);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    alert("로그인이 필요합니다!");
-    setIsSaving(false);
-    return;
-  }
+    if (!user) {
+      alert("로그인이 필요합니다!");
+      setIsSaving(false);
+      return;
+    }
 
-  const today = new Date();
-  const dateStr = today.toISOString().slice(0, 10);
+    const today = new Date();
+    const dateStr = today.toISOString().slice(0, 10);
 
-  const prevMode = logs.length > 0 ? logs[logs.length - 1].mode : "";
-  const patternBoosts = getPatternBoosts(trimmed);
+    const prevMode = logs.length > 0 ? logs[logs.length - 1].mode : "";
+    const patternBoosts = getPatternBoosts(trimmed);
 
-  let finalSignals, finalMode, finalAction;
+    let finalSignals, finalMode, finalAction;
 
-  // 1) AI 분석 시도
-  const aiResult = await fetchAIAnalysis(trimmed);
-  if (aiResult && aiResult.signals) {
-    finalSignals = aiResult.signals;
-    finalAction = aiResult.recommendedAction;
-  } else {
-    // AI 실패 시 로컬 엔진으로 신호 추출
-    finalSignals = extractSignals(trimmed);
-    finalAction = "";
-  }
+    // 1) AI 분석 시도
+    const aiResult = await fetchAIAnalysis(trimmed);
+    if (aiResult && aiResult.signals) {
+      finalSignals = aiResult.signals;
+      finalAction = aiResult.recommendedAction;
+    } else {
+      // AI 실패 시 로컬 엔진으로 신호 추출
+      finalSignals = extractSignals(trimmed);
+      finalAction = "";
+    }
 
-  // 2) 모드 결정 + 점수 계산
-  const scores = computeScores(finalSignals, patternBoosts, prevMode);
-  finalMode = decideMode(finalSignals, patternBoosts, prevMode);
+    // 2) 모드 결정 + 점수 계산
+    const scores = computeScores(finalSignals, patternBoosts, prevMode);
+    finalMode = decideMode(finalSignals, patternBoosts, prevMode);
 
-  // 화면 상단 “오늘 기록/모드” 즉시 반영
-  setSaved(trimmed);
-  setMode(finalMode);
-  setSavedAt(dateStr);
-  setLlmAction(finalAction);
-  setDebugData({
-    text: trimmed,
-    signals: finalSignals,
-    patternBoosts,
-    scores,
-    finalMode,
-  });
-
-  try {
-    // 3) Supabase logs 테이블에 저장
-    const newEntry = {
-      user_id: user.id,
-      date: dateStr,
+    // 화면 상단 “오늘 기록/모드” 즉시 반영
+    setSaved(trimmed);
+    setMode(finalMode);
+    setSavedAt(dateStr);
+    setLlmAction(finalAction);
+    setDebugData({
       text: trimmed,
-      mode: finalMode,
-      ai_action: finalAction,
       signals: finalSignals,
-    };
+      patternBoosts,
+      scores,
+      finalMode,
+    });
 
-    const { data, error: saveError } = await supabase
-      .from("logs")
-      .insert([newEntry])
-      .select();
+    try {
+      // 3) Supabase logs 테이블에 저장
+      const newEntry = {
+        user_id: user.id,
+        date: dateStr,
+        text: trimmed,
+        mode: finalMode,
+        ai_action: finalAction,
+        signals: finalSignals,
+      };
 
-    if (saveError) throw saveError;
+      const { data, error: saveError } = await supabase
+        .from("logs")
+        .insert([newEntry])
+        .select();
 
-    const savedData = data[0];
+      if (saveError) throw saveError;
 
-    // 4) 프론트 상태에 로그 추가
-    const updatedLogs = [...logs, savedData];
-    setLogs(updatedLogs);
+      const savedData = data[0];
 
-    // 5) logCount / Pro 모달 처리
-    const newLogCount = updatedLogs.length;
-    setLogCount(newLogCount);
+      // 4) 프론트 상태에 로그 추가
+      const updatedLogs = [...logs, savedData];
+      setLogs(updatedLogs);
 
-    if (userStage !== "PRO" && newLogCount === 30) {
-      setShowProModal(true);
+      // 5) logCount / Pro 모달 처리
+      const newLogCount = updatedLogs.length;
+      setLogCount(newLogCount);
+
+      if (userStage !== "PRO" && newLogCount === 30) {
+        setShowProModal(true);
+      }
+
+      // 6) 레벨 / XP 처리
+      let newXp = xp + 10;
+      let newLevel = level;
+
+      if (newXp >= NEXT_LEVEL_XP) {
+        newLevel += 1;
+        newXp -= NEXT_LEVEL_XP;
+        alert(`🎉 축하합니다! 넝쿨이 Lv.${newLevel}로 성장했습니다! 🌱`);
+      }
+
+      await supabase
+        .from("user_stats")
+        .update({ level: newLevel, xp: newXp })
+        .eq("user_id", user.id);
+
+      setXp(newXp);
+      setLevel(newLevel);
+      setText("");
+    } catch (e) {
+      console.error("저장 실패:", e);
+      alert("저장 중 오류가 발생했습니다.");
+    } finally {
+      setIsSaving(false); // 저장 끝 → 로딩 false
+    }
+  };
+
+  // ✅ 오늘 모드에 대한 "미니 인사이트" 생성 함수
+  // - 최근 최대 7개의 로그를 기준으로
+  //   현재 모드가 얼마나 자주/드물게 나타나는지 한 줄로 설명해줌
+  const buildModeInsight = (currentMode, logs) => {
+    if (!currentMode || !logs || logs.length === 0) return "";
+
+    // 최근 최대 7개 기록만 사용
+    const recent = logs.slice(-7);
+    const total = recent.length;
+
+    // 모드별 출현 횟수 집계
+    const counts = recent.reduce((acc, log) => {
+      if (!log.mode) return acc;
+      acc[log.mode] = (acc[log.mode] || 0) + 1;
+      return acc;
+    }, {});
+
+    const currentCount = counts[currentMode] || 0;
+    const label = MODE_LABEL[currentMode] || currentMode;
+
+    // 기록이 너무 적을 때는 "데이터 쌓이는 중" 문구
+    if (total <= 2) {
+      return "아직 기록이 많지 않아서, 오늘의 모드가 어떤 흐름 속에 있는지는 조금 더 지켜보는 중이에요.";
     }
 
-    // 6) 레벨 / XP 처리
-    let newXp = xp + 10;
-    let newLevel = level;
+    const ratio = currentCount / total;
 
-    if (newXp >= NEXT_LEVEL_XP) {
-      newLevel += 1;
-      newXp -= NEXT_LEVEL_XP;
-      alert(`🎉 축하합니다! 넝쿨이 Lv.${newLevel}로 성장했습니다! 🌱`);
+    // 현재 모드가 최근에 자주 반복되는 경우
+    if (ratio >= 0.5 && currentCount >= 3) {
+      return `최근 ${total}개 기록 중 ${currentCount}개가 "${label}"에 해당해요. 요즘 이 모드가 자주 나타나는 편입니다.`;
     }
 
-    await supabase
-      .from("user_stats")
-      .update({ level: newLevel, xp: newXp })
-      .eq("user_id", user.id);
+    // 현재 모드가 최근에 거의 안 나왔던 경우
+    if (currentCount === 1) {
+      return `최근 ${total}개 기록 중 오늘만 "${label}" 모드예요. 평소와는 조금 다른 하루일 수 있어요.`;
+    }
 
-    setXp(newXp);
-    setLevel(newLevel);
-    setText("");
-  } catch (e) {
-    console.error("저장 실패:", e);
-    alert("저장 중 오류가 발생했습니다.");
-  } finally {
-    setIsSaving(false); // 저장 끝 → 로딩 false
-  }
-};
-
-// ✅ 오늘 모드에 대한 "미니 인사이트" 생성 함수
-// - 최근 최대 7개의 로그를 기준으로
-//   현재 모드가 얼마나 자주/드물게 나타나는지 한 줄로 설명해줌
-const buildModeInsight = (currentMode, logs) => {
-  if (!currentMode || !logs || logs.length === 0) return "";
-
-  // 최근 최대 7개 기록만 사용 (너무 과거까지 보면 사용자 체감이 떨어져서)
-  const recent = logs.slice(-7);
-  const total = recent.length;
-
-  // 모드별 출현 횟수 집계
-  const counts = recent.reduce((acc, log) => {
-    if (!log.mode) return acc;
-    acc[log.mode] = (acc[log.mode] || 0) + 1;
-    return acc;
-  }, {});
-
-  const currentCount = counts[currentMode] || 0;
-  const label = MODE_LABEL[currentMode] || currentMode;
-
-  // 기록이 너무 적을 때는 "데이터 쌓이는 중" 문구
-  if (total <= 2) {
-    return "아직 기록이 많지 않아서, 오늘의 모드가 어떤 흐름 속에 있는지는 조금 더 지켜보는 중이에요.";
-  }
-
-  const ratio = currentCount / total;
-
-  // 현재 모드가 최근에 자주 반복되는 경우
-  if (ratio >= 0.5 && currentCount >= 3) {
-    return `최근 ${total}개 기록 중 ${currentCount}개가 "${label}"에 해당해요. 요즘 이 모드가 자주 나타나는 편입니다.`;
-  }
-
-  // 현재 모드가 최근에 거의 안 나왔던 경우
-  if (currentCount === 1) {
-    return `최근 ${total}개 기록 중 오늘만 "${label}" 모드예요. 평소와는 조금 다른 하루일 수 있어요.`;
-  }
-
-  // 그 외: 가끔씩 반복되는 패턴
-  return `최근 ${total}개 기록 중 ${currentCount}개가 "${label}" 모드예요. 가끔씩 반복되는 패턴으로 자리 잡는 중입니다.`;
-};
+    // 그 외: 가끔씩 반복되는 패턴
+    return `최근 ${total}개 기록 중 ${currentCount}개가 "${label}" 모드예요. 가끔씩 반복되는 패턴으로 자리 잡는 중입니다.`;
+  };
 
   // 최근 5개 로그 (최신순으로 보기 위해 reverse)
   const recentLogs = logs.slice(-5).reverse();
@@ -357,20 +359,14 @@ const buildModeInsight = (currentMode, logs) => {
   // UI : 예전 스샷 느낌(넓은 폭 + 연한 배경 + 큰 파란 버튼)으로 구성
   // ========================================================
   return (
-    <section className="py-8 px-4 md:px-6">
+    <section className="py-8 px-2 md:px-4">
       {/* 상단 소개 영역 */}
       <div className="max-w-4xl mx-auto mb-8">
         <Hero />
-      </div>      
+      </div>
+
       {/* 👇 여정 단계 안내 배너 (FREE / READY_FOR_PRO / PRO 용) */}
       <div className="max-w-4xl mx-auto mb-4">
-        {userStage === "USER" && logCount > 0 && logCount < 20 && (
-          <div className="nk-banner-soft">
-            <p className="text-xs md:text-sm">
-              기록들이 잘 쌓이고 있어요. 너무 잘하고 계십니다 🌱
-            </p>
-          </div>
-        )}
         {userStage === "USER" && logCount >= 20 && logCount < 30 && (
           <div className="nk-banner-soft">
             <p className="text-xs md:text-sm">
@@ -393,7 +389,7 @@ const buildModeInsight = (currentMode, logs) => {
         {userStage === "PRO" && (
           <div className="nk-banner-pro">
             <p className="text-xs md:text-sm">
-              🎉 <strong>넝쿨OS Pro</strong>가 활성화되었습니다.  
+              🎉 <strong>넝쿨OS Pro</strong>가 활성화되었습니다.
               이제 전체 히스토리와 장기 패턴, AI 코칭을 마음껏 사용하실 수 있어요.
             </p>
             <p className="text-[11px] md:text-xs text-nk-primary mt-1">
@@ -403,226 +399,237 @@ const buildModeInsight = (currentMode, logs) => {
         )}
       </div>
 
+      {/* ✅ 메인 영역 전체를 큰 카드로 감싸기 */}
       <div className="max-w-4xl mx-auto">
-        {/* 오늘의 모드 카드 */}
-        <h2 className="nk-title-main text-2xl md:text-3xl font-bold mb-3">
-          오늘의 모드
-        </h2>
-        <p className="nk-subtitle mb-4">
-          오늘 하루를 1~3줄로 남기면, 넝쿨OS가 당신의 의사결정 모드를
-          계산합니다.
-        </p>
+        <div className="bg-white rounded-3xl shadow-sm border border-blue-100 px-4 md:px-4 py-6 md:py-8">
+          {/* 오늘의 모드 카드 */}
+          <h2 className="nk-title-main text-2xl md:text-3xl font-bold mb-3">
+            오늘의 모드
+          </h2>
+          <p className="nk-subtitle mb-4">
+            오늘 하루를 1~3줄로 남기면, 넝쿨OS가 당신의 의사결정 모드를
+            계산합니다.
+          </p>
 
-        {/* 넝쿨 레벨 */}
-        <div className="mb-4">
-          <VineLevel level={level} xp={xp} nextLevelXp={NEXT_LEVEL_XP} />
-        </div>
+          {/* 넝쿨 레벨 */}
+          <div className="mb-4">
+            <VineLevel level={level} xp={xp} nextLevelXp={NEXT_LEVEL_XP} />
+          </div>
 
-        {/* 입력창 */}
-        <textarea
-          className="nk-textarea"
-          placeholder="예: 해야 할 일은 많은데 손이 잘 안 간다. 스스로가 조금 답답하게 느껴진다."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
+          {/* 입력창 */}
+          <textarea
+            className="nk-textarea"
+            placeholder="예: 해야 할 일은 많은데 손이 잘 안 간다. 스스로가 조금 답답하게 느껴진다."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
 
-        {/* 큰 파란 버튼 */}
-        <div className="mt-5 flex justify-center">
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className={`nk-btn-primary px-10 py-3 rounded-full text-sm md:text-base font-bold shadow-md 
-              flex items-center gap-2 transition-all
-              ${isSaving ? "opacity-70 cursor-not-allowed" : "hover:-translate-y-0.5"}
-            `}
-          >
-            {isSaving ? (
-              <>
-                <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                  ></path>
-                </svg>
-                <span>저장 중...</span>
-              </>
-            ) : (
-              <span>오늘 기록 저장 & 모드 보기</span>
-            )}
-          </button>
-        </div>
-
-        {/* 오늘 기록 카드 */}
-        {saved && (
-          <div className="nk-card mt-6">
-            <div className="flex items-center justify-between mb-1">
-              <div className="font-semibold text-sm">오늘 기록</div>
-              {savedAt && (
-                <span className="text-xs text-gray-400">{savedAt}</span>
+          {/* 큰 파란 버튼 */}
+          <div className="mt-5 flex justify-center">
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className={`nk-btn-primary px-10 py-3 rounded-full text-sm md:text-base font-bold shadow-md 
+                flex items-center gap-2 transition-all
+                ${
+                  isSaving
+                    ? "opacity-70 cursor-not-allowed"
+                    : "hover:-translate-y-0.5"
+                }
+              `}
+            >
+              {isSaving ? (
+                <>
+                  <svg
+                    className="animate-spin h-5 w-5 text-white"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                    ></path>
+                  </svg>
+                  <span>저장 중...</span>
+                </>
+              ) : (
+                <span>오늘 기록 저장 &amp; 모드 보기</span>
               )}
-            </div>
-            <p className="text-gray-700 whitespace-pre-line text-sm md:text-base">
-              {saved}
-            </p>
+            </button>
           </div>
-        )}
 
-        {/* 오늘의 모드 + 인사이트 + 추천 행동 카드 */}
-        {mode && (
-          <>
-            {/* 1) 오늘의 모드 */}
-            <div className="nk-card nk-card-soft mt-4">
-              <div className="font-semibold mb-1 text-nk-text-strong text-sm">
-                오늘의 모드
+          {/* 오늘 기록 카드 */}
+          {saved && (
+            <div className="nk-card mt-6">
+              <div className="flex items-center justify-between mb-1">
+                <div className="font-semibold text-sm">오늘 기록</div>
+                {savedAt && (
+                  <span className="text-xs text-gray-400">{savedAt}</span>
+                )}
               </div>
-              <p className="text-nk-primary font-bold text-sm md:text-base">
-                {MODE_LABEL[mode] || mode}
+              <p className="text-gray-700 whitespace-pre-line text-sm md:text-base">
+                {saved}
               </p>
             </div>
+          )}
 
-            {/* 2) 오늘 모드에 대한 "한 줄 인사이트" */}
-            <div className="nk-card nk-card-soft mt-3">
-              <div className="font-semibold mb-2 text-nk-text-strong text-sm">
-                한 줄 인사이트
-              </div>
-              <p className="text-xs md:text-sm text-gray-600 leading-relaxed">
-                {/* buildModeInsight는 위에서 만든 헬퍼 함수 */}
-                {buildModeInsight(mode, logs)}
-              </p>
-            </div>
-
-            {/* 3) 오늘의 추천 행동 */}
-            <div className="nk-card nk-card-soft mt-3">
-              <div className="font-semibold mb-2 text-nk-text-strong text-sm">
-                추천 행동
-              </div>
-              <p className="text-xs md:text-sm text-gray-700 leading-relaxed">
-                {llmAction || actionsForMode(mode)[0]}
-              </p>
-            </div>
-          </>
-        )}
-
-        {/* 마음 바이탈 차트 */}
-        {logs.length > 0 && (
-          // min-h를 줘서 Recharts의 width/height -1 warning을 줄임
-          <div className="nk-card mt-8 min-h-[260px]">
-            <NKChart logs={logs} />
-          </div>
-        )}
-
-        {/* 최근 기록 5개 */}
-        {recentLogs.length > 0 && (
-          <div className="nk-card mt-6 text-xs md:text-sm">
-            <div className="font-semibold mb-2 text-nk-text-strong">
-              최근 기록 5개
-            </div>
-            <ul className="space-y-2">
-              {recentLogs.map((log) => (
-                <li
-                  key={log.id}
-                  className="nk-log-row flex flex-col md:flex-row md:items-center md:justify-between gap-1"
-                >
-                  <div className="text-gray-500">
-                    {formatKoreanTime(log.created_at || log.date)}
-                  </div>
-
-                  <div className="flex-1 md:mx-4 text-gray-700 truncate">
-                    {log.text}
-                  </div>
-                  <div className="text-[11px] md:text-xs text-blue-700 font-semibold">
-                    {MODE_LABEL[log.mode] || log.mode}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Pro 전환 모달 (30개 도달 시, FREE 유저만) */}
-        {showProModal && userStage === "READY_FOR_PRO" && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
-              <h3 className="font-bold text-lg mb-2">
-                🎉 기록이 30개를 넘었어요!
-              </h3>
-              <p className="text-sm text-gray-700 mb-2 leading-relaxed">
-                이제부터는 지난 기록들을 길게 모아서 볼수록{" "}
-                <strong>장기 패턴</strong>이 또렷하게 드러나는 구간이에요.
-              </p>
-              <p className="text-xs text-gray-500 mb-3 leading-relaxed">
-                아직 정식 결제 시스템은 준비 중이라,
-                현재는 <strong>카카오톡 후원 + Pro Early Access</strong> 방식으로
-                Pro 기능을 열어드리고 있어요. 💛
-              </p>
-
-              <div className="mb-4 text-[11px] text-gray-500 bg-gray-50 rounded-xl p-3 space-y-1">
-                <div className="font-semibold text-gray-700 mb-1">
-                  카카오톡 후원 안내
+          {/* 오늘의 모드 + 인사이트 + 추천 행동 카드 */}
+          {mode && (
+            <>
+              {/* 1) 오늘의 모드 */}
+              <div className="nk-card nk-card-soft mt-4">
+                <div className="font-semibold mb-1 text-nk-text-strong text-sm">
+                  오늘의 모드
                 </div>
-                <p>1. 카카오톡 &gt; 송금 메뉴로 들어갑니다.</p>
-                <p>2. 아래 계좌로 송금 부탁 드립니다.</p>
-                <p className="mt-1">
-                  - 계좌:{" "}
-                  <span className="font-mono">
-                    토스뱅크 / 1002-2656-2081 / 박경은
-                  </span>
-                  <br />
-                </p>
-                <p className="mt-1">
-                  3. 송금 후, 아래 &quot;Pro 활성화 요청&quot; 버튼을 눌러
-                  알려주시면 확인 후 Pro 권한을 열어드립니다.
+                <p className="text-nk-primary font-bold text-sm md:text-base">
+                  {MODE_LABEL[mode] || mode}
                 </p>
               </div>
 
-              <div className="flex flex-col gap-2 text-sm">
-                <button
-                  className="px-4 py-2 rounded-full bg-nk-primary text-white font-semibold"
-                  onClick={() => {
-                    setShowProModal(false);
-                    navigate("/pro-support");
-                  }}
-                >
-                  후원 완료했어요 · Pro 활성화 요청하기
-                </button>
-
-                <button
-                  className="px-3 py-2 rounded-full border text-gray-500"
-                  onClick={() => setShowProModal(false)}
-                >
-                  나중에 할게요 (계속 무료로 사용)
-                </button>
+              {/* 2) 오늘 모드에 대한 "한 줄 인사이트" */}
+              <div className="nk-card nk-card-soft mt-3">
+                <div className="font-semibold mb-2 text-nk-text-strong text-sm">
+                  한 줄 인사이트
+                </div>
+                <p className="text-xs md:text-sm text-gray-600 leading-relaxed">
+                  {buildModeInsight(mode, logs)}
+                </p>
               </div>
+
+              {/* 3) 오늘의 추천 행동 */}
+              <div className="nk-card nk-card-soft mt-3">
+                <div className="font-semibold mb-2 text-nk-text-strong text-sm">
+                  추천 행동
+                </div>
+                <p className="text-xs md:text-sm text-gray-700 leading-relaxed">
+                  {llmAction || actionsForMode(mode)[0]}
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* 마음 바이탈 차트 */}
+          {logs.length > 0 && (
+            // min-h를 줘서 Recharts의 width/height -1 warning을 줄임
+            <div className="nk-card mt-8 min-h-[260px]">
+              <NKChart logs={logs} />
+            </div>
+          )}
+
+          {/* 최근 기록 5개 */}
+          {recentLogs.length > 0 && (
+            <div className="nk-card mt-6 text-xs md:text-sm">
+              <div className="font-semibold mb-2 text-nk-text-strong">
+                최근 기록 5개
+              </div>
+              <ul className="space-y-2">
+                {recentLogs.map((log) => (
+                  <li
+                    key={log.id}
+                    className="nk-log-row flex flex-col md:flex-row md:items-center md:justify-between gap-1"
+                  >
+                    <div className="text-gray-500">
+                      {formatKoreanTime(log.created_at || log.date)}
+                    </div>
+
+                    <div className="flex-1 md:mx-4 text-gray-700 truncate">
+                      {log.text}
+                    </div>
+                    <div className="text-[11px] md:text-xs text-blue-700 font-semibold">
+                      {MODE_LABEL[log.mode] || log.mode}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* 디버그 패널 (debug=1일 때만) */}
+          {debugEnabled && debugData && (
+            <div className="mt-8 opacity-60 hover:opacity-100 transition-opacity">
+              <DebugPanel
+                text={debugData.text}
+                signals={debugData.signals}
+                patternBoosts={debugData.patternBoosts}
+                scores={debugData.scores}
+                finalMode={debugData.finalMode}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Pro 전환 모달 (30개 도달 시, FREE 유저만) */}
+      {showProModal && userStage === "READY_FOR_PRO" && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
+            <h3 className="font-bold text-lg mb-2">🎉 기록이 30개를 넘었어요!</h3>
+            <p className="text-sm text-gray-700 mb-2 leading-relaxed">
+              이제부터는 지난 기록들을 길게 모아서 볼수록{" "}
+              <strong>장기 패턴</strong>이 또렷하게 드러나는 구간이에요.
+            </p>
+            <p className="text-xs text-gray-500 mb-3 leading-relaxed">
+              아직 정식 결제 시스템은 준비 중이라,
+              현재는 <strong>카카오톡 후원 + Pro Early Access</strong> 방식으로
+              Pro 기능을 열어드리고 있어요. 💛
+            </p>
+
+            <div className="mb-4 text-[11px] text-gray-500 bg-gray-50 rounded-xl p-3 space-y-1">
+              <div className="font-semibold text-gray-700 mb-1">
+                카카오톡 후원 안내
+              </div>
+              <p>1. 카카오톡 &gt; 송금 메뉴로 들어갑니다.</p>
+              <p>2. 아래 계좌로 송금 부탁 드립니다.</p>
+              <p className="mt-1">
+                - 계좌:{" "}
+                <span className="font-mono">
+                  토스뱅크 / 1002-2656-2081 / 박경은
+                </span>
+                <br />
+              </p>
+              <p className="mt-1">
+                3. 송금 후, 아래 &quot;Pro 활성화 요청&quot; 버튼을 눌러
+                알려주시면 확인 후 Pro 권한을 열어드립니다.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 text-sm">
+              <button
+                className="px-4 py-2 rounded-full bg-nk-primary text-white font-semibold"
+                onClick={() => {
+                  setShowProModal(false);
+                  navigate("/pro-support");
+                }}
+              >
+                후원 완료했어요 · Pro 활성화 요청하기
+              </button>
+
+              <button
+                className="px-3 py-2 rounded-full border text-gray-500"
+                onClick={() => setShowProModal(false)}
+              >
+                나중에 할게요 (계속 무료로 사용)
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* 디버그 패널 (debug=1일 때만) */}
-        {debugEnabled && debugData && (
-          <div className="mt-8 opacity-60 hover:opacity-100 transition-opacity">
-            <DebugPanel
-              text={debugData.text}
-              signals={debugData.signals}
-              patternBoosts={debugData.patternBoosts}
-              scores={debugData.scores}
-              finalMode={debugData.finalMode}
-            />
-          </div>
-        )}
+      {/* 하단: 왜 OS가 필요한가 / 모드 설명 카드 */}
+      <div className="mt-10">
+        <StorySection />
       </div>
-      {/* 하단: 의사결정 모드 6가지 설명 카드 */}
       <div className="mt-10">
         <ModesSection />
-      </div>      
+      </div>
     </section>
   );
 }
