@@ -33,6 +33,28 @@ function PublicHome({ onClickStart }) {
 function App() {
   const navigate = useNavigate();
 
+  // ✅ 콜드 스타트 완화용 서버 웜업 훅
+  useEffect(() => {
+    const API_BASE_URL =
+      import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+
+    const warmup = () => {
+      fetch(`${API_BASE_URL}/api/health`).catch((err) => {
+        // 굳이 사용자에게 보여줄 필요는 없고, 개발용으로만 확인하고 싶으면 콘솔 찍기
+        console.warn("health warmup failed (무시해도 됨):", err?.message);
+      });
+    };
+
+    // 앱 로드 시 한 번 호출
+    warmup();
+
+    // 탭이 열려있는 동안 5분에 한 번씩 서버 깨우기
+    const id = setInterval(warmup, 5 * 60 * 1000);
+
+    // 컴포넌트 언마운트 시 인터벌 정리
+    return () => clearInterval(id);
+  }, []);
+
   // --------------------------------
   // 🔥 (1) 온보딩 노출 여부 상태
   // --------------------------------

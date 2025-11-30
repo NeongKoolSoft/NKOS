@@ -33,6 +33,14 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// 💚 콜드 스타트 방지용 아주 가벼운 헬스체크 엔드포인트
+app.get("/api/health", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    ts: Date.now(),
+  });
+});
+
 // 모드 목표 정의
 const MODE_GOALS = {
     'DECISIVE': '불필요한 선택지를 제거하고, 1~2개의 핵심 행동을 즉시 시작하게 합니다.',
