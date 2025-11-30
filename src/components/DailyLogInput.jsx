@@ -194,9 +194,13 @@ function DailyLogInput() {
   //    - XP / 레벨 업데이트
   //    - logCount 업데이트 + Pro 모달 트리거
   // ======================================================
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleSave = async () => {
     const trimmed = text.trim();
     if (!trimmed) return;
+
+    setIsSaving(true);
 
     const {
       data: { user },
@@ -296,7 +300,9 @@ function DailyLogInput() {
     } catch (e) {
       console.error("저장 실패:", e);
       alert("저장 중 오류가 발생했습니다.");
-    }
+      } finally {
+        setIsSaving(false); // ⬅️ 저장 완료: 로딩 false
+      } 
   };
 
 // ✅ 오늘 모드에 대한 "미니 인사이트" 생성 함수
@@ -416,10 +422,34 @@ const buildModeInsight = (currentMode, logs) => {
         <div className="mt-5 flex justify-center">
           <button
             onClick={handleSave}
-            className="nk-btn-primary px-10 py-3 rounded-full text-sm md:text-base font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2"
+            disabled={isSaving}
+            className={`nk-btn-primary px-10 py-3 rounded-full text-sm md:text-base font-bold shadow-md 
+              flex items-center gap-2 transition-all
+              ${isSaving ? "opacity-70 cursor-not-allowed" : "hover:-translate-y-0.5"}
+            `}
           >
-            <span>오늘 기록 저장 &amp; 모드 보기</span>
-            <span className="text-lg">📌</span>
+            {isSaving ? (
+              <>
+                <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                  ></path>
+                </svg>
+                <span>저장 중...</span>
+              </>
+            ) : (
+              <span>오늘 기록 저장 & 모드 보기</span>
+            )}
           </button>
         </div>
 
