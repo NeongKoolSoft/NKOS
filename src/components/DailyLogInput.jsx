@@ -194,116 +194,118 @@ function DailyLogInput() {
   //    - XP / 레벨 업데이트
   //    - logCount 업데이트 + Pro 모달 트리거
   // ======================================================
-  const [isSaving, setIsSaving] = useState(false);
+// 저장 중 상태
+const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = async () => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
+const handleSave = async () => {
+  const trimmed = text.trim();
+  if (!trimmed) return;
 
-    setIsSaving(true);
+  setIsSaving(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      alert("로그인이 필요합니다!");
-      return;
-    }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10);
+  if (!user) {
+    alert("로그인이 필요합니다!");
+    setIsSaving(false);
+    return;
+  }
 
-    const prevMode = logs.length > 0 ? logs[logs.length - 1].mode : "";
-    const patternBoosts = getPatternBoosts(trimmed);
+  const today = new Date();
+  const dateStr = today.toISOString().slice(0, 10);
 
-    let finalSignals, finalMode, finalAction;
+  const prevMode = logs.length > 0 ? logs[logs.length - 1].mode : "";
+  const patternBoosts = getPatternBoosts(trimmed);
 
-    // 1) AI 분석 시도
-    const aiResult = await fetchAIAnalysis(trimmed);
-    if (aiResult && aiResult.signals) {
-      finalSignals = aiResult.signals;
-      finalAction = aiResult.recommendedAction;
-    } else {
-      // AI 실패 시 로컬 엔진으로 신호 추출
-      finalSignals = extractSignals(trimmed);
-      finalAction = "";
-    }
+  let finalSignals, finalMode, finalAction;
 
-    // 2) 모드 결정 + 점수 계산
-    const scores = computeScores(finalSignals, patternBoosts, prevMode);
-    finalMode = decideMode(finalSignals, patternBoosts, prevMode);
+  // 1) AI 분석 시도
+  const aiResult = await fetchAIAnalysis(trimmed);
+  if (aiResult && aiResult.signals) {
+    finalSignals = aiResult.signals;
+    finalAction = aiResult.recommendedAction;
+  } else {
+    // AI 실패 시 로컬 엔진으로 신호 추출
+    finalSignals = extractSignals(trimmed);
+    finalAction = "";
+  }
 
-    // 화면 상단 “오늘 기록/모드” 즉시 반영
-    setSaved(trimmed);
-    setMode(finalMode);
-    setSavedAt(dateStr);
-    setLlmAction(finalAction);
-    setDebugData({
+  // 2) 모드 결정 + 점수 계산
+  const scores = computeScores(finalSignals, patternBoosts, prevMode);
+  finalMode = decideMode(finalSignals, patternBoosts, prevMode);
+
+  // 화면 상단 “오늘 기록/모드” 즉시 반영
+  setSaved(trimmed);
+  setMode(finalMode);
+  setSavedAt(dateStr);
+  setLlmAction(finalAction);
+  setDebugData({
+    text: trimmed,
+    signals: finalSignals,
+    patternBoosts,
+    scores,
+    finalMode,
+  });
+
+  try {
+    // 3) Supabase logs 테이블에 저장
+    const newEntry = {
+      user_id: user.id,
+      date: dateStr,
       text: trimmed,
+      mode: finalMode,
+      ai_action: finalAction,
       signals: finalSignals,
-      patternBoosts,
-      scores,
-      finalMode,
-    });
+    };
 
-    try {
-      // 3) Supabase logs 테이블에 저장
-      const newEntry = {
-        user_id: user.id,
-        date: dateStr,
-        text: trimmed,
-        mode: finalMode,
-        ai_action: finalAction,
-        signals: finalSignals,
-      };
+    const { data, error: saveError } = await supabase
+      .from("logs")
+      .insert([newEntry])
+      .select();
 
-      const { data, error: saveError } = await supabase
-        .from("logs")
-        .insert([newEntry])
-        .select();
+    if (saveError) throw saveError;
 
-      if (saveError) throw saveError;
+    const savedData = data[0];
 
-      const savedData = data[0];
+    // 4) 프론트 상태에 로그 추가
+    const updatedLogs = [...logs, savedData];
+    setLogs(updatedLogs);
 
-      // 4) 프론트 상태에 로그 추가
-      const updatedLogs = [...logs, savedData];
-      setLogs(updatedLogs);
+    // 5) logCount / Pro 모달 처리
+    const newLogCount = updatedLogs.length;
+    setLogCount(newLogCount);
 
-      // 5) logCount / Pro 모달 처리
-      const newLogCount = updatedLogs.length;
-      setLogCount(newLogCount);
+    if (userStage !== "PRO" && newLogCount === 30) {
+      setShowProModal(true);
+    }
 
-      // 이미 PRO가 아닌 상태에서 정확히 30개가 됐을 때만 모달 표시
-      if (userStage !== "PRO" && newLogCount === 30) {
-        setShowProModal(true);
-      }
+    // 6) 레벨 / XP 처리
+    let newXp = xp + 10;
+    let newLevel = level;
 
-      // 6) 레벨 / XP 처리
-      let newXp = xp + 10;
-      let newLevel = level;
+    if (newXp >= NEXT_LEVEL_XP) {
+      newLevel += 1;
+      newXp -= NEXT_LEVEL_XP;
+      alert(`🎉 축하합니다! 넝쿨이 Lv.${newLevel}로 성장했습니다! 🌱`);
+    }
 
-      if (newXp >= NEXT_LEVEL_XP) {
-        newLevel += 1;
-        newXp -= NEXT_LEVEL_XP;
-        alert(`🎉 축하합니다! 넝쿨이 Lv.${newLevel}로 성장했습니다! 🌱`);
-      }
+    await supabase
+      .from("user_stats")
+      .update({ level: newLevel, xp: newXp })
+      .eq("user_id", user.id);
 
-      await supabase
-        .from("user_stats")
-        .update({ level: newLevel, xp: newXp })
-        .eq("user_id", user.id);
-
-      setXp(newXp);
-      setLevel(newLevel);
-      setText("");
-    } catch (e) {
-      console.error("저장 실패:", e);
-      alert("저장 중 오류가 발생했습니다.");
-      } finally {
-        setIsSaving(false); // ⬅️ 저장 완료: 로딩 false
-      } 
-  };
+    setXp(newXp);
+    setLevel(newLevel);
+    setText("");
+  } catch (e) {
+    console.error("저장 실패:", e);
+    alert("저장 중 오류가 발생했습니다.");
+  } finally {
+    setIsSaving(false); // 저장 끝 → 로딩 false
+  }
+};
 
 // ✅ 오늘 모드에 대한 "미니 인사이트" 생성 함수
 // - 최근 최대 7개의 로그를 기준으로
