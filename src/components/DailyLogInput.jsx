@@ -9,6 +9,8 @@ import NKChart from "./NKChart";
 import VineLevel from "./VineLevel";
 import { useNavigate } from "react-router-dom";
 import { formatKoreanTime } from "../utils/time";
+import Hero from "./Hero";          // :contentReference[oaicite:0]{index=0}
+import ModesSection from "./ModesSection";  // :contentReference[oaicite:1]{index=1}
 
 // 기본은 로컬(개발용), 배포에서는 Vercel 환경변수로 덮어씀
 const API_BASE_URL =
@@ -356,6 +358,10 @@ const buildModeInsight = (currentMode, logs) => {
   // ========================================================
   return (
     <section className="py-8 px-4 md:px-6">
+      {/* 상단 소개 영역 */}
+      <div className="max-w-4xl mx-auto mb-8">
+        <Hero />
+      </div>      
       {/* 👇 여정 단계 안내 배너 (FREE / READY_FOR_PRO / PRO 용) */}
       <div className="max-w-4xl mx-auto mb-4">
         {userStage === "USER" && logCount > 0 && logCount < 20 && (
@@ -613,6 +619,10 @@ const buildModeInsight = (currentMode, logs) => {
           </div>
         )}
       </div>
+      {/* 하단: 의사결정 모드 6가지 설명 카드 */}
+      <div className="mt-10">
+        <ModesSection />
+      </div>      
     </section>
   );
 }
