@@ -13,6 +13,10 @@ import Hero from "./components/Hero";
 import StorySection from "./components/StorySection";
 import ModesSection from "./components/ModesSection";
 import CtaSection from "./components/CtaSection";
+import Footer from "./components/Footer";
+
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Terms from "./pages/Terms";
 
 // 🔹 비로그인 상태에서 보이는 Public Home (소개 페이지)
 function PublicHome({ onClickStart }) {
@@ -26,6 +30,7 @@ function PublicHome({ onClickStart }) {
           <CtaSection onClickStart={onClickStart} />
         </div>
       </main>
+      <Footer />
     </div>
   );
 }
@@ -180,6 +185,8 @@ function App() {
           <Route path="/" element={<DailyLogInput />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/pro-support" element={<ProSupportPage />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<Terms />} />          
         </Routes>
       </main>
     </div>

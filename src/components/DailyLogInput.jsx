@@ -12,6 +12,7 @@ import { formatKoreanTime } from "../utils/time";
 import Hero from "./Hero";
 import ModesSection from "./ModesSection";
 import StorySection from "./StorySection";
+import Footer from "./Footer";   // 🔹 footer import 추가
 
 // 기본은 로컬(개발용), 배포에서는 Vercel 환경변수로 덮어씀
 const API_BASE_URL =
@@ -630,6 +631,9 @@ function DailyLogInput() {
       <div className="mt-10">
         <ModesSection />
       </div>
+      <div className="mt-10">
+        <Footer />      
+      </div>      
     </section>
   );
 }
