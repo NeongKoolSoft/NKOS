@@ -13,6 +13,7 @@ import Hero from "./Hero";
 import ModesSection from "./ModesSection";
 import StorySection from "./StorySection";
 import Footer from "./Footer";   // 🔹 footer import 추가
+import { getDecisionCharacterFromLogs } from "../utils/decisionCharacter";
 
 // 기본은 로컬(개발용), 배포에서는 Vercel 환경변수로 덮어씀
 const API_BASE_URL =
@@ -36,18 +37,41 @@ const MODE_LABEL = {
 const actionsForMode = (mode) => {
   switch (mode) {
     case "DELAY":
-      return ["오늘은 큰 결정은 잠시 보류하는 게 좋아요."];
+      return [
+        "지금은 결정을 서두르지 않아도 괜찮아요.\n" +
+        "잠시 마음을 식히며 에너지를 회복하는 시간을 가져보세요.",
+      ];
+
     case "STABILIZE":
-      return ["작은 일 하나만 정리하고 그 이상은 욕심내지 마세요."];
-    case "REFLECT":
-      return ["감정과 생각을 5줄 정도 글로 적어보세요."];
+      return [
+        "오늘은 한 가지 일만 가볍게 정리해도 충분합니다.\n" +
+        "속도를 조절하며 마음의 균형을 다시 맞춰보세요.",
+      ];
 
     case "SIMPLIFY":
-      return ["지금 떠오르는 선택지를 최대 3개로 줄여보세요."];
+      return [
+        "지금 떠오르는 할 일 중 세 개만 남겨보세요.\n" +
+        "그중 가장 부담이 적은 것부터 가볍게 시작해보세요.",
+      ];
+
     case "DECISIVE":
-      return ["오늘 한 가지는 완료까지 밀어붙여보세요."];
+      return [
+        "오늘은 한 가지를 선택해 끝까지 밀어붙여보세요.\n" +
+        "완료 경험이 오늘의 흐름을 크게 바꿔줄 거예요.",
+      ];
+
     case "EXPLORATORY":
-      return ["새로운 시도를 하나, 부담 없이 해보세요."];
+      return [
+        "평소 하지 않던 새로운 선택을 하나 시도해보세요.\n" +
+        "가벼운 탐색이 오늘 하루의 활력을 만들어줄 거예요.",
+      ];
+
+    case "REFLECT":
+      return [
+        "오늘 떠올랐던 감정들을 짧게라도 글로 남겨보세요.\n" +
+        "흐름을 정리하면 마음이 훨씬 가벼워질 거예요.",
+      ];
+
     default:
       return [];
   }
@@ -356,6 +380,9 @@ function DailyLogInput() {
   // 최근 5개 로그 (최신순으로 보기 위해 reverse)
   const recentLogs = logs.slice(-5).reverse();
 
+  // ✅ 기록 기반 "나의 의사결정 캐릭터" 계산
+  const character = getDecisionCharacterFromLogs(logs);
+
   // ========================================================
   // UI : 예전 스샷 느낌(넓은 폭 + 연한 배경 + 큰 파란 버튼)으로 구성
   // ========================================================
@@ -414,7 +441,12 @@ function DailyLogInput() {
 
           {/* 넝쿨 레벨 */}
           <div className="mb-4">
-            <VineLevel level={level} xp={xp} nextLevelXp={NEXT_LEVEL_XP} />
+            <VineLevel
+              level={level}
+              xp={xp}
+              nextLevelXp={NEXT_LEVEL_XP}
+              character={character}
+            />
           </div>
 
           {/* 입력창 */}
@@ -510,7 +542,7 @@ function DailyLogInput() {
                 <div className="font-semibold mb-2 text-nk-text-strong text-sm">
                   추천 행동
                 </div>
-                <p className="text-xs md:text-sm text-gray-700 leading-relaxed">
+                <p className="text-xs md:text-sm text-gray-700 leading-relaxed whitespace-pre-line">
                   {llmAction || actionsForMode(mode)[0]}
                 </p>
               </div>

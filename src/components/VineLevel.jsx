@@ -46,7 +46,7 @@ const VineIcons = ({ level }) => {
   }
 };
 
-const VineLevel = ({ level, xp, nextLevelXp }) => {
+const VineLevel = ({ level, xp, nextLevelXp, character }) => {
   const progress = Math.min((xp / nextLevelXp) * 100, 100);
 
   return (
@@ -74,9 +74,25 @@ const VineLevel = ({ level, xp, nextLevelXp }) => {
             style={{ width: `${progress}%` }}
           ></div>
         </div>
-        <p className="text-xs text-gray-500 mt-2">
-          {level < 10 ? "기록을 남겨 넝쿨을 키워보세요! 🌱" : "넝쿨이 아름답게 만개했습니다! 🌸"}
-        </p>
+
+
+        {/* 캐릭터 한 줄 소개 영역 */}
+        {character ? (
+          <div className="mt-2 text-xs">
+            <p className="text-emerald-700 font-semibold">
+              {character.titleKo}
+            </p>
+            {character.tagline && (
+              <p className="text-gray-500 mt-1">
+                {character.tagline}
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500 mt-2">
+            기록을 남겨 넝쿨을 키워보세요! 🌱
+          </p>
+        )}
       </div>
     </div>
   );

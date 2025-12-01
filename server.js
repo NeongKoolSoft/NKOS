@@ -99,7 +99,7 @@ app.post("/api/generate-action", async (req, res) => {
     "EXPLORATORY": 0,
     "REFLECT": 0
   },
-  "recommendedAction": "여기에 한국어 한 문장으로 행동 제안을 적으세요."
+  "recommendedAction": "여기에 한국어 두 문장으로 행동 제안을 적으세요."
 }
 `;
 
