@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import { supabase } from "./lib/supabase";
 
 import Login from "./components/Login";
@@ -17,6 +16,7 @@ import Footer from "./components/Footer";
 
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
+import { Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
 
 // 🔹 비로그인 상태에서 보이는 Public Home (소개 페이지)
 function PublicHome({ onClickStart }) {
@@ -37,6 +37,12 @@ function PublicHome({ onClickStart }) {
 
 function App() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // 약관/정책 페이지 여부
+  const isLegalPage =
+    location.pathname === "/privacy" || location.pathname === "/terms";
+
 
   // ✅ 콜드 스타트 완화용 서버 웜업 훅
   useEffect(() => {
@@ -104,9 +110,9 @@ function App() {
   // --------------------------------
   // 🔥 (3) 온보딩: 로그인 안 된 사람에게만 1회 노출
   // --------------------------------
-  if (!hasSeenOnboarding && !session) {
+  if (!hasSeenOnboarding && !session && !isLegalPage) {
     return <Onboarding onFinish={handleFinishOnboarding} />;
-  }
+  }  
 
   // --------------------------------
   // 🔥 (4) 세션 로딩 중
@@ -130,6 +136,9 @@ function App() {
           element={<PublicHome onClickStart={handleClickStart} />}
         />
         <Route path="/login" element={<Login />} />
+        {/* ✅ 비로그인 상태에서도 개인정보/약관 페이지 접근 가능하게 추가 */}
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<Terms />} />
       </Routes>
     );
   }

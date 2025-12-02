@@ -300,9 +300,10 @@ function HistoryPage() {
 
           {userStage === "READY_FOR_PRO" && (
             <div className="nk-banner-strong text-xs md:text-sm">
-              기록이 <strong>{logCount}개</strong>를 넘었어요!  
-              현재 화면에선 최근 30개까지만 보이고,  
-              더 오래된 기록은 Pro 기능에서 열립니다.
+              기록이 <strong>{logCount}개</strong>를 넘었어요!{" "}
+              현재 플랜에서는 <strong>가장 최근 30개 기록</strong>까지만 볼 수 있습니다.
+              <br />
+              그 이전 기록들은 잠겨 있으며, Pro 전환 시 전체 히스토리를 한 번에 살펴볼 수 있어요.
             </div>
           )}
         </div>
@@ -350,9 +351,13 @@ function HistoryPage() {
               {hasLockedLogs &&
                 renderedLogs.length === visibleLogs.length && (
                   <li className="nk-card text-xs md:text-sm text-gray-500 border-dashed border-gray-300">
-                    총 {logs.length}개 중{" "}
-                    <strong>{logs.length - visibleLogs.length}개</strong>의 기록은  
-                    현재 플랜에서 숨겨져 있어요.
+                    총 {logs.length}개의 기록 중{" "}
+                    <strong>{visibleLogs.length}개</strong>까지를 현재 플랜에서 보고 있어요.
+                    <br />
+                    나머지{" "}
+                    <strong>{logs.length - visibleLogs.length}개</strong>의 예전 기록은
+                    잠겨 있으며, 상단 메뉴의 <strong>“Pro 안내”</strong>에서
+                    전체 히스토리를 여는 방법을 확인하실 수 있습니다.
                   </li>
                 )}
             </ul>
@@ -365,7 +370,7 @@ function HistoryPage() {
               {renderedLogs.length < visibleLogs.length
                 ? "스크롤하면 더 많은 기록을 불러옵니다..."
                 : hasLockedLogs
-                ? "현재 플랜 기준으로 볼 수 있는 기록을 모두 불러왔어요."
+                ? "현재 플랜 기준으로 볼 수 있는 기록을 모두 불러왔어요. (이전 기록은 Pro에서 열립니다.)"
                 : "모든 기록을 불러왔어요."}
             </div>
           </>
