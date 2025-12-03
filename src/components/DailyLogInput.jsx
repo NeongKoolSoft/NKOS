@@ -237,8 +237,13 @@ function DailyLogInput() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      alert("로그인이 필요합니다!");
       setIsSaving(false);
+      const goLogin = window.confirm(
+        "기록을 저장하려면 로그인이 필요합니다.\n로그인 페이지로 이동할까요?"
+      );
+      if (goLogin) {
+        navigate("/login");
+      }
       return;
     }
 

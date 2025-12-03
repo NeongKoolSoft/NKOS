@@ -20,7 +20,7 @@ export default function CtaSection({ onClickStart }) {
           onClick={handleClick}
           className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-white text-blue-600 font-semibold text-sm shadow-md hover:bg-blue-50 transition-colors"
         >
-          기록 시작하기
+          오늘의 모드로 이동
         </button>
       </div>
     </section>
