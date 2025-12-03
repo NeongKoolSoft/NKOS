@@ -51,7 +51,7 @@ export default function HeaderMobile() {
             </Link>
 
             <Link to="/history" onClick={() => setOpen(false)}>
-                넝쿨 모드 히스토리
+              넝쿨 모드 히스토리
             </Link>
 
             <Link to="/planner" onClick={() => setOpen(false)}>

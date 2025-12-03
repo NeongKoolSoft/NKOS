@@ -71,37 +71,61 @@ app.post("/api/generate-action", async (req, res) => {
   }
 
   try {
-    const prompt = `
-당신은 의사결정 모드 엔진 "NKOS"입니다.
+// 6. AI에게 보낼 편지(프롬프트) 작성 (스케일링 버전)
+// server.js 프롬프트 부분 수정 (개념적 정의 버전)
+// server.js 프롬프트 부분 (Delay 모드 구출 작전)
+        const prompt = `
+            ## 역할
+            당신은 'NungleOS'의 초정밀 심리 분석 엔진입니다.
 
-[모드 목록]
-- DELAY
-- STABILIZE
-- SIMPLIFY
-- DECISIVE
-- EXPLORATORY
-- REFLECT
+            ## 사용자 기록
+            "${userLog}"
 
-[사용자 기록]
-"${userLog}"
+            ## 임무 1: 심리 신호 분석 (0~3점 척도)
+            **아래의 [핵심 기준]을 반드시 지켜서 평가하세요.**
 
-1단계) 각 모드에 대해 0~5점으로 점수를 매기세요.
-2단계) 지금 이 사용자에게 도움이 되는 구체적인 행동을 한 문장으로 제안하세요.
+            1) **emotion_vs_logic** (0: 이성적 ~ 3: 감성적)
+               - 💡 **중요:** "피곤하다", "힘들다", "졸리다"는 육체적 상태이므로 **0점**입니다.
+               - 비유적인 표현("중력 10배" 등)이라도 몸이 힘든 거라면 감정이 아니라 상태 서술입니다 (0~1점).
 
-아래 JSON 형식으로만 응답하세요. 설명 문장은 쓰지 마세요.
+            2) **risk_avoidance** (0: 대담함 ~ 3: 불안/공포)
+               - 실패에 대한 두려움이나 걱정이 있을 때만 높게 잡으세요.
 
-{
-  "signals": {
-    "DELAY": 0,
-    "STABILIZE": 0,
-    "SIMPLIFY": 0,
-    "DECISIVE": 0,
-    "EXPLORATORY": 0,
-    "REFLECT": 0
-  },
-  "recommendedAction": "여기에 한국어 두 문장으로 행동 제안을 적으세요."
-}
-`;
+            3) **responsibility_avoidance** (0: 주도적 ~ 3: 회피적)
+               - "하기 싫다", "내일로 미루자", "도망가고 싶다"는 강력한 회피 신호(3점)입니다.
+
+            4) **analysis_paralysis** (0: 행동 중심 ~ 3: 생각 과다/정지)
+               - 💡 **핵심 기준:** 행동이 멈춘 상태를 체크하세요.
+               - "멍하다", "아무것도 안 하고 싶다", "잠만 자고 싶다", "손에 안 잡힌다"는 **행동 마비** 상태이므로 무조건 **3점**을 부여하세요.
+               - 고민하느라 못 움직이는 것뿐만 아니라, **지쳐서 멈춘 것도 마비**입니다.
+
+            5) **priority_confusion** (0: 명확 ~ 3: 혼란)
+               - 뭘 해야 할지 모르는 상태일 때 3점.
+
+            6) **energy_level** (0: 고갈/무기력 ~ 3: 활력)
+               - "힘들다", "지쳤다", "귀찮다", "의욕 없다"는 **0점**입니다.
+
+            7) **novelty_drive** (0: 익숙함 ~ 3: 호기심)
+
+            ## 임무 2: 맞춤형 행동 추천
+            (80자 이내, 사용자의 상태를 반영한 구체적 행동 1가지)
+
+            ## 출력 형식 (JSON Only)
+            {
+                "signals": {
+                    "emotion_vs_logic": 0,
+                    "risk_avoidance": 0,
+                    "responsibility_avoidance": 0,
+                    "analysis_paralysis": 0,
+                    "priority_confusion": 0,
+                    "energy_level": 0,
+                    "novelty_drive": 0
+                },
+                "recommendedAction": "..."
+            }
+        `;
+
+        
 
     const modelName = "gemini-2.0-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;

@@ -1,118 +1,143 @@
-// src/components/NKChart.jsx
-// 넝쿨OS 마음 바이탈 차트 (logs.signals 기반)
-
 import {
+  ResponsiveContainer,
   LineChart,
   Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
+  Area,
 } from "recharts";
 
-const MAX_VITAL = 5;
-
-// 1) 한 로그의 signals → 에너지 / 불안 점수로 변환
-function toVitals(signals = {}) {
-  const delay = signals.DELAY || 0;
-  const stabilize = signals.STABILIZE || 0;
-  const decisive = signals.DECISIVE || 0;
-  const exploratory = signals.EXPLORATORY || 0;
-
-  // 실행/탐색 계열 → 에너지
-  let energy = decisive + exploratory;
-  // 지연/안정 계열 → 불안·피로
-  let tension = delay + stabilize;
-
-  // 0~5 사이로 클램프
-  energy = Math.max(0, Math.min(MAX_VITAL, energy));
-  tension = Math.max(0, Math.min(MAX_VITAL, tension));
-
-  return { energy, tension };
-}
-
-// 2) 툴팁 컴포넌트(선택)
-const VitalTooltip = ({ active, payload, label }) => {
-  if (!active || !payload || payload.length === 0) return null;
-
-  const energy = payload.find((p) => p.dataKey === "energy")?.value ?? 0;
-  const tension = payload.find((p) => p.dataKey === "tension")?.value ?? 0;
-
-  return (
-    <div className="rounded-xl bg-white/95 shadow-lg border border-gray-100 px-3 py-2 text-xs">
-      <div className="font-semibold text-gray-700 mb-1">{label}</div>
-      <div className="space-y-0.5">
-        <div className="text-[11px] text-emerald-600">
-          에너지 : <span className="font-semibold">{energy}</span>
-        </div>
-        <div className="text-[11px] text-rose-500">
-          불안/피로 : <span className="font-semibold">{tension}</span>
-        </div>
-      </div>
-    </div>
-  );
+// 모드 기반 에너지 점수 (1~5)
+const MODE_VITAL_SCORE = {
+  DELAY: 1,
+  STABILIZE: 2,
+  SIMPLIFY: 3,
+  DECISIVE: 4,
+  EXPLORATORY: 5,
+  REFLECT: 2,
 };
 
-function NKChart({ logs }) {
-  if (!logs || logs.length === 0) return null;
+// 감정 텍스트에서 단순 스코어링 (추후 LLM 결과 대체 가능)
+function analyzeEmotion(text = "") {
+  const t = text.toLowerCase();
 
-  // 3) 최근 7건만 사용 (일단 날짜 순 정렬)
-  const last7 = [...logs]
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(-7);
+  if (t.includes("우울") || t.includes("불안") || t.includes("피곤") || t.includes("힘들"))
+    return -2;
 
-  const data = last7.map((log) => {
-    const { energy, tension } = toVitals(log.signals || {});
+  if (t.includes("짜증") || t.includes("귀찮") || t.includes("지루"))
+    return -1;
+
+  if (t.includes("좋다") || t.includes("기분") || t.includes("활기") || t.includes("괜찮"))
+    return +1;
+
+  return 0; // 중립
+}
+
+// 날짜 라벨
+function formatDate(raw) {
+  const d = new Date(raw);
+  if (isNaN(d)) return raw;
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${mm}-${dd} ${hh}:${mi}`;
+}
+
+// 로그 → 차트 데이터
+function buildChartData(logs) {
+  const recent = [...logs].slice(-7); // 최근 7개
+
+  return recent.map((log, idx) => {
+    const dateStr = log.created_at || log.date;
     return {
-      date: log.date,   // x축
-      energy,
-      tension,
+      id: log.id ?? idx,
+      date: formatDate(dateStr),
+      energy: MODE_VITAL_SCORE[log.mode] ?? 0,
+      emotion: analyzeEmotion(log.text || log.message || ""),
+      mode: log.mode,
     };
   });
+}
+
+// 커스텀 툴팁
+function VitalTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0].payload;
 
   return (
-    <div>
-      <div className="font-semibold text-sm mb-2 text-nk-text-strong">
-        🧠 마음 바이탈 흐름 (최근 7건)
-      </div>
-      <div className="h-56">
+    <div className="bg-white/95 border border-gray-200 rounded-xl px-3 py-2 text-xs shadow-sm">
+      <div className="font-semibold text-gray-700 mb-1">{p.date}</div>
+      <div className="text-pink-500 font-semibold">모드: {p.mode}</div>
+      <div>에너지: {p.energy}</div>
+      <div>감정: {p.emotion}</div>
+    </div>
+  );
+}
+
+function NKChart({ logs }) {
+  const data = buildChartData(logs);
+  if (!data.length) return null;
+
+  return (
+    <div className="w-full">
+      <h3 className="text-sm font-semibold text-gray-700 mb-2">
+        마음 바이탈 흐름 (최근 {data.length}건)
+      </h3>
+
+      <div className="h-60">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#eef2ff" />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 10 }}
-              tickMargin={6}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              domain={[0, 5]}
-              tick={{ fontSize: 10 }}
-              ticks={[0, 1, 2, 3, 4, 5]}
-              axisLine={false}
-              tickLine={false}
-            />
+          <LineChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+            <YAxis yAxisId="energy" domain={[1, 5]} hide />
+            <YAxis yAxisId="emotion" domain={[-2, 2]} hide />
             <Tooltip content={<VitalTooltip />} />
-            <Line
+
+            {/* 에너지 영역 + 라인 */}
+            <defs>
+              <linearGradient id="energyFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#ec4899" stopOpacity={0.8} />
+                <stop offset="100%" stopColor="#ec4899" stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
+
+            <Area
+              yAxisId="energy"
               type="monotone"
               dataKey="energy"
-              stroke="#10b981" // 에너지(초록)
-              strokeWidth={2}
-              dot={false}
-              name="에너지"
+              stroke="none"
+              fill="url(#energyFill)"
             />
+
             <Line
+              yAxisId="energy"
               type="monotone"
-              dataKey="tension"
-              stroke="#ef4444" // 불안/피로(빨강)
-              strokeWidth={1.5}
-              dot={false}
-              name="불안/피로"
+              dataKey="energy"
+              stroke="#ec4899"
+              strokeWidth={2.4}
+              dot={{ r: 4 }}
+            />
+
+            {/* 감정 밸런스 라인 */}
+            <Line
+              yAxisId="emotion"
+              type="monotone"
+              dataKey="emotion"
+              stroke="#3b82f6"
+              strokeWidth={2.2}
+              dot={{ r: 4 }}
             />
           </LineChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* 라벨 설명 */}
+      <div className="mt-2 text-[10px] text-gray-400 flex justify-between">
+        <span>에너지(핑크): 1~5</span>
+        <span>감정(파랑): -2~+2</span>
       </div>
     </div>
   );

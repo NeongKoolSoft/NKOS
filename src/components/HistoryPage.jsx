@@ -13,6 +13,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { formatKoreanTime } from "../utils/time";
+import Footer from "../components/Footer";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
@@ -263,6 +264,7 @@ function HistoryPage() {
   // 🖥 UI 렌더링
   // ============================================================================
   return (
+    <>
     <section className="py-6 px-5 pb-20">
       <div className="max-w-3xl mx-auto">
 
@@ -434,6 +436,8 @@ function HistoryPage() {
         )}
       </div>
     </section>
+    <Footer />
+    </>
   );
 }
 
