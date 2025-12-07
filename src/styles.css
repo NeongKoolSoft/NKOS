@@ -1,0 +1,209 @@
+:root {
+  /* Brand Core */
+  --nk-color-primary:       #a78bd9; /* 라일락 */
+  --nk-color-primary-soft:  #f3ecff;
+  --nk-color-primary-strong:#7b5eb0;
+
+  /* Accent / Status */
+  --nk-color-success:       #b7d3c6; /* 세이지 그린 */
+  --nk-color-info:          #9cc6eb; /* 스카이 블루 */
+  --nk-color-warning:       #facc6b;
+  --nk-color-danger:        #f97373;
+
+  /* Neutral */
+  --nk-color-bg:            #f8f7fa;
+  --nk-color-surface:       #ffffff;
+  --nk-color-border-soft:   #e5e7eb;
+  --nk-color-border-emph:   #d4d4dd;
+
+  --nk-color-text-main:     #374151;
+  --nk-color-text-sub:      #6b7280;
+  --nk-color-text-muted:    #9ca3af;
+
+  /* Shadow */
+  --nk-shadow-soft:         0 18px 45px rgba(15, 23, 42, 0.10);
+  --nk-shadow-card:         0 10px 30px rgba(15, 23, 42, 0.08);
+  --nk-shadow-light:        0 8px 20px rgba(15, 23, 42, 0.05);
+
+  /* Radius */
+  --nk-radius-lg:           22px;
+  --nk-radius-md:           16px;
+  --nk-radius-pill:         999px;
+
+  /* Transition */
+  --nk-ease-soft:           cubic-bezier(0.21, 0.47, 0.32, 0.98);
+
+}
+
+/* body 기본 배경/텍스트 */
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Pretendard",
+    "Segoe UI", sans-serif;
+  background-color: var(--nk-color-bg);
+  color: var(--nk-color-text-main);
+}
+
+.nk-title-main {
+  letter-spacing: -0.03em;
+  color: var(--nk-color-text-main);
+}
+
+.nk-title-main::after {
+  content: "";
+  display: inline-block;
+  margin-left: 6px;
+  width: 34px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--nk-color-primary),
+    var(--nk-color-info)
+  );
+  opacity: 0.6;
+  vertical-align: middle;
+}
+
+/* 기본 카드 (좀 더 강한 영역) */
+.nk-card {
+  background-color: var(--nk-color-surface);
+  border-radius: var(--nk-radius-lg);
+  border: 1px solid rgba(167, 139, 217, 0.18); /* 라일락 아주 연하게 */
+  box-shadow: var(--nk-shadow-card);
+  padding: 18px 18px;
+}
+
+/* 소프트 카드 (설명, 요약, 서브 영역) */
+.nk-card-soft {
+  background: linear-gradient(
+    135deg,
+    rgba(247, 245, 255, 0.95),
+    rgba(241, 248, 255, 0.9)
+  );
+  border-radius: var(--nk-radius-lg);
+  border: 1px solid rgba(167, 139, 217, 0.15);
+  box-shadow: var(--nk-shadow-light);
+  padding: 16px 18px;
+}
+
+/* 버튼 계열 */
+.nk-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  background-image: linear-gradient(
+    135deg,
+    var(--nk-color-primary),
+    var(--nk-color-info)
+  );
+  color: #ffffff;
+
+  font-size: 0.8rem;
+  font-weight: 600;
+
+  padding: 0.55rem 1.2rem;
+  border-radius: var(--nk-radius-pill);
+  border: none;
+  box-shadow: var(--nk-shadow-soft);
+
+  cursor: pointer;
+  transition:
+    transform 140ms var(--nk-ease-soft),
+    box-shadow 140ms var(--nk-ease-soft),
+    filter 140ms var(--nk-ease-soft),
+    opacity 140ms ease-out;
+}
+
+.nk-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 20px 50px rgba(88, 28, 135, 0.25);
+}
+
+.nk-btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--nk-shadow-card);
+}
+
+.nk-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* 서브/텍스트 버튼 */
+.nk-btn-ghost {
+  border-radius: var(--nk-radius-pill);
+  border: 1px solid rgba(167, 139, 217, 0.3);
+  background-color: rgba(255, 255, 255, 0.7);
+  color: var(--nk-color-primary-strong);
+  font-size: 0.75rem;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+  transition: background-color 120ms var(--nk-ease-soft),
+    border-color 120ms var(--nk-ease-soft),
+    color 120ms var(--nk-ease-soft);
+}
+
+.nk-btn-ghost:hover {
+  background-color: rgba(167, 139, 217, 0.06);
+  border-color: rgba(167, 139, 217, 0.5);
+}
+
+/* 배너 / 알림 */
+.nk-banner-soft {
+  border-radius: var(--nk-radius-md);
+  border: 1px solid rgba(167, 139, 217, 0.3);
+  background: linear-gradient(
+    90deg,
+    rgba(248, 247, 252, 0.95),
+    rgba(240, 249, 255, 0.95)
+  );
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  color: var(--nk-color-text-sub);
+}
+
+.nk-banner-strong {
+  border-radius: var(--nk-radius-md);
+  border: 1px solid rgba(167, 139, 217, 0.6);
+  background: linear-gradient(
+    120deg,
+    rgba(167, 139, 217, 0.12),
+    rgba(156, 198, 235, 0.16)
+  );
+  padding: 11px 13px;
+  font-size: 0.8rem;
+  color: var(--nk-color-text-main);
+  font-weight: 500;
+}
+
+/* 모달 기본 */
+.nk-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.38);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.nk-modal-content {
+  background: radial-gradient(
+      circle at top left,
+      rgba(167, 139, 217, 0.12),
+      transparent 55%
+    ),
+    var(--nk-color-surface);
+  border-radius: 24px;
+  padding: 20px 22px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.35);
+  border: 1px solid rgba(167, 139, 217, 0.25);
+}
+

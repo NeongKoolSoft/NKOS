@@ -1,8 +1,11 @@
 // src/lib/modeEngine.js
 // 넝쿨OS 모드 엔진 FSM 2.2 (REFLECT Mode 포함)
 
-import { extractSignals } from "./modeSignals";
-import { getPatternBoosts } from "./modePatterns";
+//import { extractSignals } from "./modeSignals";
+//import { getPatternBoosts } from "./modePatterns";
+
+import { extractSignals } from "./modeSignals.js";
+import { getPatternBoosts } from "./modePatterns.js";
 
 export const MODES = [
   "DELAY",

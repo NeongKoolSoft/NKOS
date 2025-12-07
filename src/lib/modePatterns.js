@@ -2,8 +2,10 @@
 // 문장 패턴 기반 모드 보너스 점수 (넝쿨OS FSM 2.2)
 
 export function getPatternBoosts(text) {
-  const t = (text || "").trim();
+  const t = (typeof text === "string" ? text : String(text ?? "")).trim();
   const has = (w) => t.includes(w);
+
+  
 
   const boosts = {
     DELAY: 0,

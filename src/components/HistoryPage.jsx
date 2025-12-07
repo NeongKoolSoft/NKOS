@@ -13,10 +13,14 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { formatKoreanTime } from "../utils/time";
+<<<<<<< HEAD
 import Footer from "../components/Footer";
+=======
+import AiErrorNotice from "../components/AiErrorNotice"; 
+>>>>>>> 2ac8a0e (fix: 251207 2102)
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
 const API_REPORT_URL = `${API_BASE_URL}/api/generate-report`;
 
@@ -38,13 +42,13 @@ const MODE_LABEL = {
 // ============================================================================
 // 🔍 최근 N개 로그 요약 생성 (히스토리 상단 한 줄 요약 카드)
 // ============================================================================
-function buildHistorySummary(logs, count = 7) {
-  if (!logs || logs.length === 0) {
+function buildHistorySummary(nkos_logs, count = 7) {
+  if (!nkos_logs || nkos_logs.length === 0) {
     return "아직 기록이 없어요. 오늘의 첫 기록을 남겨볼까요?";
   }
-
+  
   // 최신 N개만 추출
-  const recent = logs.slice(0, count);
+  const recent = nkos_logs.slice(0, count);
   const total = recent.length;
 
   // 모드별 개수 집계
@@ -78,11 +82,12 @@ function HistoryPage() {
   // ---------------------------------------------
   // 기본 로그 및 사용자 상태
   // ---------------------------------------------
-  const [logs, setLogs] = useState([]);              // 전체 로그
+  const [nkos_logs, setLogs] = useState([]);              // 전체 로그
   const [logCount, setLogCount] = useState(0);        // 전체 로그 개수
   const [userStage, setUserStage] = useState("USER"); // USER | READY_FOR_PRO | PRO
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [aiError, setAiError] = useState(null);
 
   // ---------------------------------------------
   // 인피니트 스크롤: 현재 화면에 표시 중인 로그 개수
@@ -128,17 +133,17 @@ function HistoryPage() {
 
         // 해당 사용자의 로그 전체 조회 (최신순)
         const { data, error } = await supabase
-          .from("logs")
+          .from("nkos_logs")
           .select("*")
-          .eq("user_id", user.id)
-          .order("id", { ascending: false });
+          .eq("user_id", user.id)          
+          .order("created_at", { ascending: false })
 
         if (error) throw error;
 
         setLogs(data);
         setLogCount(data.length);
       } catch (e) {
-        console.error("Failed to load logs:", e);
+        console.error("Failed to load nkos_logs:", e);
         setLoadError("기록을 불러오는 중 문제가 발생했습니다.");
       } finally {
         setIsLoadingLogs(false);
@@ -167,13 +172,13 @@ function HistoryPage() {
   // ============================================================================
   // 📌 플랜 제한: USER/READY_FOR_PRO → 최대 30개까지만 조회 가능
   // ============================================================================
-  let visibleCount = logs.length;
+  let visibleCount = nkos_logs.length;
   if (userStage === "USER" || userStage === "READY_FOR_PRO") {
-    visibleCount = Math.min(logs.length, 30);
+    visibleCount = Math.min(nkos_logs.length, 30);
   }
 
-  const visibleLogs = logs.slice(0, visibleCount); // 실제 렌더링 가능 영역
-  const hasLockedLogs = logs.length > visibleLogs.length;
+  const visibleLogs = nkos_logs.slice(0, visibleCount); // 실제 렌더링 가능 영역
+  const hasLockedLogs = nkos_logs.length > visibleLogs.length;
 
   // ============================================================================
   // 🔄 visibleLogs 개수가 변경되면 표시 개수 초기화
@@ -223,36 +228,59 @@ function HistoryPage() {
   // ============================================================================
   // 🌱 주간 AI 리포트 생성
   // ============================================================================
-  const handleGenerateReport = async () => {
-    if (logs.length < 2) {
-      alert("분석할 기록이 부족합니다.(최소 2개 이상)");
+  // ============================================================================
+// 🌱 주간 AI 리포트 생성
+// ============================================================================
+const handleGenerateReport = async () => {
+  if (nkos_logs.length < 2) {
+    alert("분석할 기록이 부족합니다.(최소 2개 이상)");
+    return;
+  }
+
+  // 🔽 이전 에러 초기화
+  setAiError(null);
+
+  setIsLoading(true);
+  setShowModal(true);
+
+  try {
+    // AI는 과거→현재 순을 선호하므로 reverse
+    const recentLogs = nkos_logs.slice(0, 7).reverse();
+
+    const response = await fetch(API_REPORT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nkos_logs: recentLogs }),
+    });
+
+    const data = await response.json();  // ✅ 한 번만 호출
+
+    if (!response.ok) {
+      // 백엔드가 { error, code } 형태로 내려준다고 가정
+      setAiError({
+        code: data.code || "LLM_UNKNOWN_ERROR",
+        message:
+          data.error ||
+          "리포트를 생성하지 못했습니다. 잠시 후 다시 시도해주세요.",
+      });
+      setReportText(""); // 본문은 비워 두거나 짧은 문구만
       return;
     }
 
-    setIsLoading(true);
-    setShowModal(true);
+    // 정상일 때: 리포트 텍스트만 표시
+    setReportText(data.report || "");
+  } catch (err) {
+    console.error("Report Error:", err);
+    setAiError({
+      code: "LLM_UNKNOWN_ERROR",
+      message: "리포트를 생성하지 못했습니다. 잠시 후 다시 시도해주세요.",
+    });
+    setReportText("");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
-    try {
-      // AI는 과거→현재 순을 선호하므로 reverse
-      const recentLogs = logs.slice(0, 7).reverse();
-
-      const response = await fetch(API_REPORT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ logs: recentLogs }),
-      });
-
-      if (!response.ok) throw new Error("서버 오류");
-
-      const data = await response.json();
-      setReportText(data.report); // AI 글
-    } catch (err) {
-      console.error("Report Error:", err);
-      setReportText("리포트를 생성하지 못했습니다. 잠시 후 다시 시도해주세요.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // 모달 닫기
   const closeModal = () => {
@@ -286,7 +314,7 @@ function HistoryPage() {
         {/* 🔍 최근 기록 요약 (한 줄) */}
         {/* --------------------------------------------- */}
         <div className="nk-card-soft mb-6 text-xs md:text-sm text-gray-700">
-          {buildHistorySummary(logs)}
+          {buildHistorySummary(nkos_logs)}
         </div>
 
         {/* --------------------------------------------- */}
@@ -321,7 +349,7 @@ function HistoryPage() {
           <div className="text-center py-10 text-gray-400 text-sm">
             {loadError}
           </div>
-        ) : logs.length === 0 ? (
+        ) : nkos_logs.length === 0 ? (
           <div className="text-center py-10 text-gray-400">
             아직 기록이 없습니다.
           </div>
@@ -353,11 +381,11 @@ function HistoryPage() {
               {hasLockedLogs &&
                 renderedLogs.length === visibleLogs.length && (
                   <li className="nk-card text-xs md:text-sm text-gray-500 border-dashed border-gray-300">
-                    총 {logs.length}개의 기록 중{" "}
+                    총 {nkos_logs.length}개의 기록 중{" "}
                     <strong>{visibleLogs.length}개</strong>까지를 현재 플랜에서 보고 있어요.
                     <br />
                     나머지{" "}
-                    <strong>{logs.length - visibleLogs.length}개</strong>의 예전 기록은
+                    <strong>{nkos_logs.length - visibleLogs.length}개</strong>의 예전 기록은
                     잠겨 있으며, 상단 메뉴의 <strong>“Pro 안내”</strong>에서
                     전체 히스토리를 여는 방법을 확인하실 수 있습니다.
                   </li>
@@ -408,6 +436,14 @@ function HistoryPage() {
                   {reportText}
                 </div>
               )}
+
+              {aiError && (
+                <AiErrorNotice
+                  code={aiError.code}
+                  message={aiError.message}
+                  onRetry={handleGenerateReport}
+                />
+              )}              
 
               {!isLoading && (
                 <button

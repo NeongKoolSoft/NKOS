@@ -5,7 +5,7 @@
 const clamp = (x) => Math.max(0, Math.min(3, x));
 
 export function extractSignals(text) {
-  const t = (text || "").trim();
+  const t = (typeof text === "string" ? text : String(text ?? "")).trim();
   const has = (w) => t.includes(w);
 
   // 기본값

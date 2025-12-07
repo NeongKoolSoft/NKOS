@@ -1,4 +1,5 @@
 // src/pages/Planner.jsx
+<<<<<<< HEAD
 // 🔹 넝쿨 Planner (별도 페이지)
 // - 오늘 기록의 "마지막 모드"를 기준으로 자동 계획 생성
 // - Apple Reminders처럼 심플한 체크리스트 UI
@@ -522,3 +523,8 @@ export default function Planner() {
     </>
   );
 }
+=======
+import PlannerPage from "./PlannerPage"; // 경로: src/pages/PlannerPage.jsx
+
+export default PlannerPage;
+>>>>>>> 2ac8a0e (fix: 251207 2102)

@@ -14,10 +14,11 @@ import ModesSection from "./ModesSection";
 import StorySection from "./StorySection";
 import Footer from "./Footer";   // 🔹 footer import 추가
 import { getDecisionCharacterFromLogs } from "../utils/decisionCharacter";
+import AiErrorNotice from "./AiErrorNotice";
 
 // 기본은 로컬(개발용), 배포에서는 Vercel 환경변수로 덮어씀
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
 const API_URL = `${API_BASE_URL}/api/generate-action`;
 
@@ -80,6 +81,8 @@ const actionsForMode = (mode) => {
 function DailyLogInput() {
   const navigate = useNavigate();
 
+  const [aiError, setAiError] = useState(null);
+
   // ---------- 입력/결과 상태 ----------
   const [text, setText] = useState("");
   const [saved, setSaved] = useState("");
@@ -88,7 +91,7 @@ function DailyLogInput() {
   const [llmAction, setLlmAction] = useState("");
 
   // ---------- 로그 / 레벨 / XP ----------
-  const [logs, setLogs] = useState([]);
+  const [nkos_logs, setLogs] = useState([]);
   const [level, setLevel] = useState(1);
   const [xp, setXp] = useState(0);
 
@@ -103,8 +106,8 @@ function DailyLogInput() {
   const [userStage, setUserStage] = useState("USER");
   const [showProModal, setShowProModal] = useState(false);
 
-  // ======================================================
-  // 1. 초기 데이터 로드 (logs + user_stats)
+    // ======================================================
+  // 1. 초기 데이터 로드 (nkos_logs + user_stats)
   // ======================================================
   useEffect(() => {
     const fetchData = async () => {
@@ -117,10 +120,10 @@ function DailyLogInput() {
 
         // 2) 로그 전체 로드 (오래된 → 최신순)
         const { data: logData, error: logError } = await supabase
-          .from("logs")
+          .from("nkos_logs")
           .select("*")
           .eq("user_id", user.id)
-          .order("id", { ascending: true });
+          .order("created_at", { ascending: true })
 
         if (logError) throw logError;
 
@@ -250,7 +253,7 @@ function DailyLogInput() {
     const today = new Date();
     const dateStr = today.toISOString().slice(0, 10);
 
-    const prevMode = logs.length > 0 ? logs[logs.length - 1].mode : "";
+    const prevMode = nkos_logs.length > 0 ? nkos_logs[nkos_logs.length - 1].mode : "";
     const patternBoosts = getPatternBoosts(trimmed);
 
     let finalSignals, finalMode, finalAction;
@@ -284,10 +287,10 @@ function DailyLogInput() {
     });
 
     try {
-      // 3) Supabase logs 테이블에 저장
+      // 3) Supabase nkos_logs 테이블에 저장
       const newEntry = {
         user_id: user.id,
-        date: dateStr,
+        log_date: dateStr,
         text: trimmed,
         mode: finalMode,
         ai_action: finalAction,
@@ -295,7 +298,7 @@ function DailyLogInput() {
       };
 
       const { data, error: saveError } = await supabase
-        .from("logs")
+        .from("nkos_logs")
         .insert([newEntry])
         .select();
 
@@ -304,7 +307,7 @@ function DailyLogInput() {
       const savedData = data[0];
 
       // 4) 프론트 상태에 로그 추가
-      const updatedLogs = [...logs, savedData];
+      const updatedLogs = [...nkos_logs, savedData];
       setLogs(updatedLogs);
 
       // 5) logCount / Pro 모달 처리
@@ -344,11 +347,11 @@ function DailyLogInput() {
   // ✅ 오늘 모드에 대한 "미니 인사이트" 생성 함수
   // - 최근 최대 7개의 로그를 기준으로
   //   현재 모드가 얼마나 자주/드물게 나타나는지 한 줄로 설명해줌
-  const buildModeInsight = (currentMode, logs) => {
-    if (!currentMode || !logs || logs.length === 0) return "";
+  const buildModeInsight = (currentMode, nkos_logs) => {
+    if (!currentMode || !nkos_logs || nkos_logs.length === 0) return "";
 
     // 최근 최대 7개 기록만 사용
-    const recent = logs.slice(-7);
+    const recent = nkos_logs.slice(-7);
     const total = recent.length;
 
     // 모드별 출현 횟수 집계
@@ -383,10 +386,45 @@ function DailyLogInput() {
   };
 
   // 최근 5개 로그 (최신순으로 보기 위해 reverse)
-  const recentLogs = logs.slice(-5).reverse();
+  const recentLogs = nkos_logs.slice(-5).reverse();
 
   // ✅ 기록 기반 "나의 의사결정 캐릭터" 계산
-  const character = getDecisionCharacterFromLogs(logs);
+  const character = getDecisionCharacterFromLogs(nkos_logs);
+
+  const handleAnalyze = async () => {
+    setAiError(null);
+    setIsAnalyzing(true);
+
+    try {
+      const res = await fetch("/api/analyze-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: inputValue }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        // 백엔드에서 { error, code } 형태로 내려온다고 가정
+        setAiError({ code: json.code, message: json.error });
+        return;
+      }
+
+      // ★ 정상 처리 로직 ...
+      // setMode(json.mode);
+      // setSignals(json.signals);
+      // ...
+
+    } catch (e) {
+      console.error("analyze error", e);
+      setAiError({
+        code: "LLM_UNKNOWN_ERROR",
+        message: "네트워크 오류로 분석을 진행하지 못했습니다.",
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   // ========================================================
   // UI : 예전 스샷 느낌(넓은 폭 + 연한 배경 + 큰 파란 버튼)으로 구성
@@ -538,7 +576,7 @@ function DailyLogInput() {
                   한 줄 인사이트
                 </div>
                 <p className="text-xs md:text-sm text-gray-600 leading-relaxed">
-                  {buildModeInsight(mode, logs)}
+                  {buildModeInsight(mode, nkos_logs)}
                 </p>
               </div>
 
@@ -555,10 +593,10 @@ function DailyLogInput() {
           )}
 
           {/* 마음 바이탈 차트 */}
-          {logs.length > 0 && (
+          {nkos_logs.length > 0 && (
             // min-h를 줘서 Recharts의 width/height -1 warning을 줄임
             <div className="nk-card mt-8 min-h-[260px]">
-              <NKChart logs={logs} />
+              <NKChart nkos_logs={nkos_logs} />
             </div>
           )}
 
@@ -671,6 +709,16 @@ function DailyLogInput() {
       <div className="mt-10">
         <Footer />      
       </div>      
+      {aiError && (
+        <div className="mt-3">
+          <AiErrorNotice
+            code={aiError.code}
+            message={aiError.message}
+            onRetry={handleAnalyze}
+            compact
+          />
+        </div>
+      )}
     </section>
   );
 }

@@ -7,6 +7,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { callGeminiSafe } from "./llmClient.js";
 
 dotenv.config();
 
@@ -19,7 +20,7 @@ if (!apiKey) {
 
 // 2. 서버 설정
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 3000;
 
 // 현재 파일 경로 계산 (ES Module)
 const __filename = fileURLToPath(import.meta.url);
@@ -71,6 +72,7 @@ app.post("/api/generate-action", async (req, res) => {
   }
 
   try {
+<<<<<<< HEAD
 // 6. AI에게 보낼 편지(프롬프트) 작성 (스케일링 버전)
 // server.js 프롬프트 부분 수정 (개념적 정의 버전)
 // server.js 프롬프트 부분 (Delay 모드 구출 작전)
@@ -126,9 +128,51 @@ app.post("/api/generate-action", async (req, res) => {
         `;
 
         
+=======
+    // === 1. 프롬프트 작성 ===
+    const prompt = `
+## 역할
+당신은 'NungleOS'의 초정밀 심리 분석 엔진입니다.
 
+## 사용자 기록
+"${userLog}"
+
+## 임무 1: 심리 신호 분석 (0~3점 척도)
+아래 7개의 지표를 0~3 사이 정수로만 평가하고, JSON으로만 반환하세요.
+
+지표:
+- emotion_vs_logic
+- risk_avoidance
+- responsibility_avoidance
+- analysis_paralysis
+- priority_confusion
+- energy_level
+- novelty_drive
+
+## 임무 2: 맞춤형 행동 추천
+사용자의 상태를 반영한 구체적인 행동 1가지를 80자 이내로 써 주세요.
+
+## 출력 형식 (JSON Only)
+다음 형식의 JSON만 반환하세요. 설명 문장 없이 JSON만 출력합니다.
+
+{
+  "signals": {
+    "emotion_vs_logic": 0,
+    "risk_avoidance": 0,
+    "responsibility_avoidance": 0,
+    "analysis_paralysis": 0,
+    "priority_confusion": 0,
+    "energy_level": 0,
+    "novelty_drive": 0
+  },
+  "recommendedAction": "..."
+}
+`;
+>>>>>>> 2ac8a0e (fix: 251207 2102)
+
+        
     const modelName = "gemini-2.0-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+    const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent`;
 
     const response = await fetch(url, {
       method: "POST",
@@ -139,10 +183,10 @@ app.post("/api/generate-action", async (req, res) => {
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-            temperature: 0.0,
-            topP: 0.1,
-            topK: 1,
-            maxOutputTokens: 200
+          temperature: 0.0,
+          topP: 0.1,
+          topK: 1,
+          maxOutputTokens: 200,
         },
       }),
     });
@@ -150,50 +194,83 @@ app.post("/api/generate-action", async (req, res) => {
     if (!response.ok) {
       const err = await response.text();
       console.error("❌ Google API Error:", err);
-      // 여기서 바로 500 던지지 말고, 프론트가 fallback 쓰게 함
-      return res.json({ signals: null, recommendedAction: "" });
+      return res.json({ signals: null, recommendedAction: "", error: err });
     }
 
-    const data = await response.json();
-    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!raw) {
-      console.error("❌ LLM 응답 비어 있음");
-      return res.json({ signals: null, recommendedAction: "" });
+    // === 2. LLM 응답 파싱 (여기서 trim 에러 안 나게 방어) ===
+    const result = await response.json();
+    console.log("🔍 LLM Raw Response:", JSON.stringify(result, null, 2));
+
+    const parts = result?.candidates?.[0]?.content?.parts || [];
+
+    // text 타입인 것만 모아서 하나의 문자열로
+    let rawText = parts
+      .map((p) => (typeof p.text === "string" ? p.text : ""))
+      .join("");
+
+    if (typeof rawText !== "string") {
+      rawText = String(rawText ?? "");
     }
 
-    console.log("🔍 LLM raw response:\n", raw);
+    let cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "");
+    cleaned = typeof cleaned === "string" ? cleaned.trim() : String(cleaned ?? "").trim();
 
-    // 코드블럭/설명 제거 후 JSON 부분만 추출
-    const trimmed = raw.trim();
-    const start = trimmed.indexOf("{");
-    const end = trimmed.lastIndexOf("}");
-    if (start === -1 || end === -1) {
-      console.error("❌ JSON 본문 위치를 찾지 못함:", trimmed);
-      return res.json({ signals: null, recommendedAction: "" });
+    if (!cleaned || cleaned.length < 3) {
+      console.error("❌ LLM 응답 비어 있음 또는 구조 변경됨");
+      return res.json({
+        signals: null,
+        recommendedAction: "",
+        error: "EMPTY_OR_INVALID_LLM_TEXT",
+      });
     }
 
-    const jsonStr = trimmed.slice(start, end + 1);
+    console.log("📩 Parsed LLM Text:", cleaned);
+
+    // JSON 블럭만 추출
+    //const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    //const jsonString = (jsonMatch ? jsonMatch[0] : cleaned).trim();
+
+
+    const jsonMatch = typeof cleaned === "string" ? cleaned.match(/\{[\s\S]*\}/) : null;
+    let jsonString = jsonMatch && typeof jsonMatch[0] === "string"
+      ? jsonMatch[0]
+      : cleaned;
+
+    jsonString = typeof jsonString === "string"
+      ? jsonString.trim()
+      : String(jsonString ?? "").trim();
+
+
 
     let parsed;
     try {
-      parsed = JSON.parse(jsonStr);
+      parsed = JSON.parse(jsonString);
     } catch (e) {
-      console.error("❌ JSON 파싱 실패:", jsonStr, e);
-      return res.json({ signals: null, recommendedAction: "" });
+      console.error("❌ LLM JSON 파싱 실패:", e);
+      console.error("📜 파싱 시도한 문자열:", jsonString);
+      return res.json({
+        signals: null,
+        recommendedAction: "",
+        error: e.message || "JSON_PARSE_ERROR",
+      });
     }
 
-    if (!parsed.signals || typeof parsed.recommendedAction !== "string") {
-      console.error("❌ JSON 형식 오류:", parsed);
-      return res.json({ signals: null, recommendedAction: "" });
-    }
+    const signals = parsed.signals || null;
+    const recommendedAction = parsed.recommendedAction || "";
 
-    // ✅ 정상: 프론트가 그대로 사용하는 형태
-    console.log("✅ [완료] 분석 + 추천 결과 전송됨");
-    return res.json(parsed);
+    console.log("✅ [완료] 행동 분석 + 추천 결과 전송", {
+      signals,
+      recommendedAction,
+    });
+
+    return res.json({ signals, recommendedAction });
   } catch (error) {
     console.error("❌ [핸들러 내부 오류]", error);
-    // 여기도 500 대신 fallback
-    return res.json({ signals: null, recommendedAction: "" });
+    return res.json({
+      signals: null,
+      recommendedAction: "",
+      error: error.message || "HANDLER_ERROR",
+    });
   }
 });
 
@@ -204,10 +281,16 @@ app.post('/api/generate-report', async (req, res) => {
     console.log("📊 [리포트 요청] 처리 시작...");
 
     try {
-        const { logs } = req.body;
-        if (!logs || logs.length === 0) throw new Error("기록 없음");
+        const { nkos_logs } = req.body;
+        if (!nkos_logs || nkos_logs.length === 0) throw new Error("기록 없음");
 
-        const logsContext = logs.map(log => `- [${log.date}] ${log.mode}: ${log.text}`).join('\n');
+        const logsContext = nkos_logs
+          .map((log) => {
+            const date =
+              log.log_date || log.created_at || ""; // 테이블 구조에 맞게
+            return `- [${date}] ${log.mode}: ${log.text}`;
+          })
+          .join("\n");
         
         const prompt = `
             ## 역할: 회고 비서
@@ -245,6 +328,36 @@ app.post('/api/generate-report', async (req, res) => {
         console.error("❌ [오류]", error);
         res.status(500).json({ error: '리포트 생성 실패' });
     }
+});
+
+app.post("/api/analyze-log", async (req, res) => {
+  const { text } = req.body;
+
+  try {
+    const result = await callGeminiSafe({
+      prompt: text,
+      system: "넝쿨OS 규칙에 맞춰 모드/신호/액션을 분석해줘 ...",
+      maxOutputTokens: 512,
+    });
+
+    if (!result.ok) {
+      // 프론트에서 구분할 수 있도록 status + code 함께 전달
+      const status = result.errorCode?.includes("QUOTA") ? 429 : 503;
+      return res.status(status).json({
+        error: result.message,
+        code: result.errorCode,
+      });
+    }
+
+    const rawText = result.data.text();
+
+    // ... 여기서 JSON 파싱 / FSM 연동 ...
+
+    res.json({ /* 분석 결과 */ });
+  } catch (e) {
+    console.error("/api/analyze-log fatal:", e);
+    res.status(500).json({ error: "서버 내부 오류가 발생했습니다." });
+  }
 });
 
 // =================================================================

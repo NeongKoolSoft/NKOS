@@ -43,8 +43,10 @@ import Footer from "./components/Footer";
 // -------------------------
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
-import Planner from "./pages/Planner";
+import Planner from "./pages/PlannerPage";
 import Insight from "./pages/Insight";
+import PlannerPage from "./pages/PlannerPage";
+import InsightReport from "./pages/InsightReport";
 
 // ============================================================================
 // 1) 공통 유틸 컴포넌트 : ScrollToTop
@@ -148,7 +150,7 @@ function App() {
   // -------------------------
   useEffect(() => {
     const API_BASE_URL =
-      import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+      import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
     const warmup = () => {
       fetch(`${API_BASE_URL}/api/health`).catch((err) => {
@@ -315,12 +317,13 @@ function App() {
           <Route path="/history" element={<HistoryPage />} />
 
           {/* 넝쿨 플래너 / 넝쿨 인사이트 (준비/확장용) */}
-          <Route path="/planner" element={<Planner />} />
+          <Route path="/planner" element={<PlannerPage />} />
           <Route path="/insight" element={<Insight />} />
-
+          <Route path="/insight/report" element={<InsightReport />} />
+          
           {/* Pro 안내 / 후원 안내 페이지 */}
           <Route path="/pro-support" element={<ProSupportPage />} />
-
+          
           {/* 정책/약관 (로그인 상태에서도 접근 가능) */}
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<Terms />} />

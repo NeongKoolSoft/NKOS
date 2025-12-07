@@ -1,28 +1,22 @@
 // src/components/CtaSection.jsx
 export default function CtaSection({ onClickStart }) {
+  // App에서 넘어온 onClickStart를 한 번 감싸서 사용하는 핸들러
   const handleClick = () => {
-    if (onClickStart) onClickStart();   // ✅ App에서 넘어온 핸들러 호출
+    if (onClickStart) onClickStart();
   };
 
   return (
-    <section className="mt-16 mb-24">
-      <div className="bg-blue-600 rounded-3xl px-8 py-10 text-center text-white">
-        <h2 className="text-2xl font-bold mb-3">
-          당신의 방식으로 결정하세요.
-        </h2>
-        <p className="text-sm opacity-90 mb-8">
-          넝쿨OS는 당신을 더 열심히 하라고만 밀어붙이지 않습니다.
-          당신의 리듬에 맞는 의사결정 방식을 지원합니다.
-        </p>
+    <section className="py-20 bg-gradient-to-br from-[#f3ecff] to-[#edf7ff] text-center">
+      <h2 className="text-xl font-bold text-nk-color-primary-strong">
+        오늘부터 당신의 리듬을 함께 가꿀까요?
+      </h2>
 
-        <button
-          type="button"
-          onClick={handleClick}
-          className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-white text-blue-600 font-semibold text-sm shadow-md hover:bg-blue-50 transition-colors"
-        >
-          오늘의 모드로 이동
-        </button>
-      </div>
+      <button
+        className="nk-btn-primary mt-6 px-10 py-3"
+        onClick={handleClick}   // ✅ 여기 이름만 맞춰주면 끝!
+      >
+        넝쿨OS 시작하기 🌸
+      </button>
     </section>
   );
 }

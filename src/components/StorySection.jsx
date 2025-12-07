@@ -1,22 +1,34 @@
 // src/components/StorySection.jsx
 function StorySection() {
   return (
-    <section className="py-8 px-4 bg-gray-100 md:py-10">
-      <div className="max-w-3xl mx-auto">
-        <h2 className="text-2xl md:text-3xl font-semibold mb-6 text-center">
-          왜 사람에게 OS가 필요한가?
-        </h2>
-        <p className="mb-4 text-sm md:text-base text-gray-700 leading-relaxed">
-          우리는 매일 수많은 결정을 내리지만 그 대부분은 감정, 피로, 습관, 불안 같은 것들에 휩쓸립니다.
-        </p>
-        <p className="mb-4 text-sm md:text-base text-gray-700 leading-relaxed">
-          캘린더와 할 일 앱은 많지만, <strong>“지금 어떤 방식으로 결정하는 게 가장 좋은가?”</strong>를 알려주는 도구는 없습니다.
-        </p>
-        <p className="mb-4 text-sm md:text-base text-gray-700 leading-relaxed">
-          넝쿨OS는 당신의 삶을 체크리스트가 아닌 <strong>운영체제(OS)</strong>로 바라봅니다.
-        </p>
+    <section className="py-16 px-6 bg-[#f8f7fa]">
+      <div className="max-w-4xl mx-auto space-y-10">
+
+        <div className="nk-card-soft">
+          <h3 className="text-lg font-semibold mb-2 text-nk-color-primary-strong">
+            감정의 흐름을 기록하면
+          </h3>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            당신만의 리듬이 보여요.  
+            넝쿨OS는 하루의 작은 변화에서 패턴을 찾아
+            성장 방향을 제안해줘요.
+          </p>
+        </div>
+
+        <div className="nk-card-soft">
+          <h3 className="text-lg font-semibold mb-2 text-nk-color-primary-strong">
+            '모드'는 당신의 하루를 설명하는 언어예요
+          </h3>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            Delay, Reflect, Simplify...  
+            하루의 흐름이 어떤 리듬인지 명확히 알면  
+            무엇을 해야 할지 보이기 시작하죠.
+          </p>
+        </div>
+
       </div>
     </section>
+
   );
 }
 
