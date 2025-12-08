@@ -12,9 +12,10 @@ import { formatKoreanTime } from "../utils/time";
 import Hero from "./Hero";
 import ModesSection from "./ModesSection";
 import StorySection from "./StorySection";
-import Footer from "./Footer";   // 🔹 footer import 추가
+import Footer from "./Footer";   // 🔹 footer import
 import { getDecisionCharacterFromLogs } from "../utils/decisionCharacter";
 import AiErrorNotice from "./AiErrorNotice";
+import ModeStoryCard from "./ModeStoryCard"; // 🔹 모드 스토리 카드 추가
 
 // 기본은 로컬(개발용), 배포에서는 Vercel 환경변수로 덮어씀
 const API_BASE_URL =
@@ -40,43 +41,55 @@ const actionsForMode = (mode) => {
     case "DELAY":
       return [
         "지금은 결정을 서두르지 않아도 괜찮아요.\n" +
-        "잠시 마음을 식히며 에너지를 회복하는 시간을 가져보세요.",
+          "잠시 마음을 식히며 에너지를 회복하는 시간을 가져보세요.",
       ];
 
     case "STABILIZE":
       return [
         "오늘은 한 가지 일만 가볍게 정리해도 충분합니다.\n" +
-        "속도를 조절하며 마음의 균형을 다시 맞춰보세요.",
+          "속도를 조절하며 마음의 균형을 다시 맞춰보세요.",
       ];
 
     case "SIMPLIFY":
       return [
         "지금 떠오르는 할 일 중 세 개만 남겨보세요.\n" +
-        "그중 가장 부담이 적은 것부터 가볍게 시작해보세요.",
+          "그중 가장 부담이 적은 것부터 가볍게 시작해보세요.",
       ];
 
     case "DECISIVE":
       return [
         "오늘은 한 가지를 선택해 끝까지 밀어붙여보세요.\n" +
-        "완료 경험이 오늘의 흐름을 크게 바꿔줄 거예요.",
+          "완료 경험이 오늘의 흐름을 크게 바꿔줄 거예요.",
       ];
 
     case "EXPLORATORY":
       return [
         "평소 하지 않던 새로운 선택을 하나 시도해보세요.\n" +
-        "가벼운 탐색이 오늘 하루의 활력을 만들어줄 거예요.",
+          "가벼운 탐색이 오늘 하루의 활력을 만들어줄 거예요.",
       ];
 
     case "REFLECT":
       return [
         "오늘 떠올랐던 감정들을 짧게라도 글로 남겨보세요.\n" +
-        "흐름을 정리하면 마음이 훨씬 가벼워질 거예요.",
+          "흐름을 정리하면 마음이 훨씬 가벼워질 거예요.",
       ];
 
     default:
       return [];
   }
 };
+
+// 점수 객체에서 Top1 / Top2 모드 추출
+function pickTop2Modes(scores) {
+  const entries = Object.entries(scores || {});
+  if (!entries.length) return { primary: "", secondary: "" };
+
+  entries.sort((a, b) => b[1] - a[1]); // 점수 내림차순
+  const primary = entries[0]?.[0] || "";
+  const secondary = entries[1]?.[0] || "";
+
+  return { primary, secondary };
+}
 
 function DailyLogInput() {
   const navigate = useNavigate();
@@ -86,9 +99,14 @@ function DailyLogInput() {
   // ---------- 입력/결과 상태 ----------
   const [text, setText] = useState("");
   const [saved, setSaved] = useState("");
-  const [mode, setMode] = useState("");
+  const [mode, setMode] = useState(""); // Top1 / primary 모드
+  const [secondaryMode, setSecondaryMode] = useState(""); // 🔹 Top2 모드
   const [savedAt, setSavedAt] = useState("");
   const [llmAction, setLlmAction] = useState("");
+
+  // ⭐ Top1 / Top2 모드 상태
+  const [top1, setTop1] = useState("");
+  const [top2, setTop2] = useState("");  
 
   // ---------- 로그 / 레벨 / XP ----------
   const [nkos_logs, setLogs] = useState([]);
@@ -106,7 +124,7 @@ function DailyLogInput() {
   const [userStage, setUserStage] = useState("USER");
   const [showProModal, setShowProModal] = useState(false);
 
-    // ======================================================
+  // ======================================================
   // 1. 초기 데이터 로드 (nkos_logs + user_stats)
   // ======================================================
   useEffect(() => {
@@ -123,7 +141,7 @@ function DailyLogInput() {
           .from("nkos_logs")
           .select("*")
           .eq("user_id", user.id)
-          .order("created_at", { ascending: true })
+          .order("created_at", { ascending: true });
 
         if (logError) throw logError;
 
@@ -134,8 +152,24 @@ function DailyLogInput() {
           const latest = logData[logData.length - 1];
           setSaved(latest.text);
           setMode(latest.mode);
-          setSavedAt(latest.date);
+          setSavedAt(latest.log_date || latest.date);
           setLlmAction(latest.ai_action);
+
+          // ⭐ 최신 로그 기준으로 Top1/Top2 계산
+          try {
+            const baseSignals =
+              latest.signals || extractSignals(latest.text || "");
+            const basePattern = getPatternBoosts(latest.text || "");
+            const scores = computeScores(baseSignals, basePattern, null);
+            const { primary, secondary } = pickTop2Modes(scores);
+
+            setTop1(primary || latest.mode);
+            setTop2(secondary);
+          } catch (e) {
+            console.error("초기 Top 모드 계산 오류:", e);
+            setTop1(latest.mode);
+            setTop2("");
+          }
         }
 
         // 3) user_stats 로드 (레벨/XP/플랜)
@@ -222,7 +256,7 @@ function DailyLogInput() {
   // ======================================================
   // 5. 저장 버튼 클릭 핸들러
   //    - 로그 저장
-  //    - 모드 계산
+  //    - 모드 계산 (Top1 + Top2)
   //    - XP / 레벨 업데이트
   //    - logCount 업데이트 + Pro 모달 트리거
   // ======================================================
@@ -253,7 +287,8 @@ function DailyLogInput() {
     const today = new Date();
     const dateStr = today.toISOString().slice(0, 10);
 
-    const prevMode = nkos_logs.length > 0 ? nkos_logs[nkos_logs.length - 1].mode : "";
+    const prevMode =
+      nkos_logs.length > 0 ? nkos_logs[nkos_logs.length - 1].mode : "";
     const patternBoosts = getPatternBoosts(trimmed);
 
     let finalSignals, finalMode, finalAction;
@@ -269,15 +304,22 @@ function DailyLogInput() {
       finalAction = "";
     }
 
+    // 2) 모드 점수 계산
     // 2) 모드 결정 + 점수 계산
     const scores = computeScores(finalSignals, patternBoosts, prevMode);
     finalMode = decideMode(finalSignals, patternBoosts, prevMode);
+
+    // ⭐ 점수 기반 Top1 / Top2 추출
+    const { primary, secondary } = pickTop2Modes(scores);
 
     // 화면 상단 “오늘 기록/모드” 즉시 반영
     setSaved(trimmed);
     setMode(finalMode);
     setSavedAt(dateStr);
     setLlmAction(finalAction);
+    setTop1(primary || finalMode);
+    setTop2(secondary);
+
     setDebugData({
       text: trimmed,
       signals: finalSignals,
@@ -391,6 +433,10 @@ function DailyLogInput() {
   // ✅ 기록 기반 "나의 의사결정 캐릭터" 계산
   const character = getDecisionCharacterFromLogs(nkos_logs);
 
+  // (LLM 에러용 분석 재시도 – 기존 코드 그대로 유지)
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [inputValue] = useState(""); // 현재는 AiErrorNotice용 placeholder
+
   const handleAnalyze = async () => {
     setAiError(null);
     setIsAnalyzing(true);
@@ -414,7 +460,6 @@ function DailyLogInput() {
       // setMode(json.mode);
       // setSignals(json.signals);
       // ...
-
     } catch (e) {
       console.error("analyze error", e);
       setAiError({
@@ -425,6 +470,9 @@ function DailyLogInput() {
       setIsAnalyzing(false);
     }
   };
+
+  // ⭐ Top1 없으면 mode를 기본값으로
+  const primaryMode = top1 || mode;  
 
   // ========================================================
   // UI : 예전 스샷 느낌(넓은 폭 + 연한 배경 + 큰 파란 버튼)으로 구성
@@ -450,8 +498,9 @@ function DailyLogInput() {
         {userStage === "READY_FOR_PRO" && (
           <div className="nk-banner-strong">
             <p className="text-xs md:text-sm">
-              기록이 {logCount}개를 넘어섰어요. 지금부터는 &quot;장기 패턴&quot;을
-              보면 훨씬 더 명확해집니다. Pro 전환을 검토해볼 때예요.
+              기록이 {logCount}개를 넘어섰어요. 지금부터는 &quot;장기
+              패턴&quot;을 보면 훨씬 더 명확해집니다. Pro 전환을 검토해볼
+              때예요.
             </p>
           </div>
         )}
@@ -461,7 +510,8 @@ function DailyLogInput() {
           <div className="nk-banner-pro">
             <p className="text-xs md:text-sm">
               🎉 <strong>넝쿨OS Pro</strong>가 활성화되었습니다.
-              이제 전체 히스토리와 장기 패턴, AI 코칭을 마음껏 사용하실 수 있어요.
+              이제 전체 히스토리와 장기 패턴, AI 코칭을 마음껏 사용하실 수
+              있어요.
             </p>
             <p className="text-[11px] md:text-xs text-nk-primary mt-1">
               오늘도 기록이 쌓일수록, 넝쿨OS는 당신을 더 잘 이해하게 됩니다 🌱
@@ -557,20 +607,42 @@ function DailyLogInput() {
             </div>
           )}
 
-          {/* 오늘의 모드 + 인사이트 + 추천 행동 카드 */}
+          {/* 오늘의 모드 + 스토리 + 인사이트 + 추천 행동 카드 */}
           {mode && (
-            <>
-              {/* 1) 오늘의 모드 */}
-              <div className="nk-card nk-card-soft mt-4">
-                <div className="font-semibold mb-1 text-nk-text-strong text-sm">
-                  오늘의 모드
-                </div>
-                <p className="text-nk-primary font-bold text-sm md:text-base">
-                  {MODE_LABEL[mode] || mode}
-                </p>
-              </div>
+            <>              
+              {/* 오늘의 모드 (Top1 + Top2) */}
+              {mode && (
+                <div className="nk-card nk-card-soft mt-4">
+                  <div className="font-semibold mb-1 text-nk-text-strong text-sm">
+                    오늘의 모드
+                  </div>
 
-              {/* 2) 오늘 모드에 대한 "한 줄 인사이트" */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg md:text-xl font-bold text-nk-primary">
+                      {primaryMode}
+                    </span>
+
+                    {top2 && (
+                      <>
+                        <span className="text-gray-400">→</span>
+                        <span className="text-sm md:text-base font-semibold text-gray-500">
+                          {top2}
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="text-[11px] md:text-xs text-gray-500 mt-1">
+                    {MODE_LABEL[primaryMode]?.split(" : ")[1]}
+                    {top2 && ` ↗ ${MODE_LABEL[top2]?.split(" : ")[1]}`}
+                  </div>
+                </div>
+              )}
+
+              {/* 2) Top1 + Top2 조합 스토리 카드 */}
+              <ModeStoryCard primary={mode} secondary={secondaryMode} />
+
+              {/* 3) 오늘 모드에 대한 "한 줄 인사이트" */}
               <div className="nk-card nk-card-soft mt-3">
                 <div className="font-semibold mb-2 text-nk-text-strong text-sm">
                   한 줄 인사이트
@@ -580,10 +652,10 @@ function DailyLogInput() {
                 </p>
               </div>
 
-              {/* 3) 오늘의 추천 행동 */}
+              {/* 4) 오늘의 추천 행동 */}
               <div className="nk-card nk-card-soft mt-3">
                 <div className="font-semibold mb-2 text-nk-text-strong text-sm">
-                  추천 행동
+                  AI 추천 행동
                 </div>
                 <p className="text-xs md:text-sm text-gray-700 leading-relaxed whitespace-pre-line">
                   {llmAction || actionsForMode(mode)[0]}
@@ -707,8 +779,8 @@ function DailyLogInput() {
         <ModesSection />
       </div>
       <div className="mt-10">
-        <Footer />      
-      </div>      
+        <Footer />
+      </div>
       {aiError && (
         <div className="mt-3">
           <AiErrorNotice

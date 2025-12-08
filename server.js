@@ -72,7 +72,7 @@ app.post("/api/generate-action", async (req, res) => {
   }
 
   try {
-<<<<<<< HEAD
+
 // 6. AI에게 보낼 편지(프롬프트) 작성 (스케일링 버전)
 // server.js 프롬프트 부분 수정 (개념적 정의 버전)
 // server.js 프롬프트 부분 (Delay 모드 구출 작전)
@@ -126,50 +126,6 @@ app.post("/api/generate-action", async (req, res) => {
                 "recommendedAction": "..."
             }
         `;
-
-        
-=======
-    // === 1. 프롬프트 작성 ===
-    const prompt = `
-## 역할
-당신은 'NungleOS'의 초정밀 심리 분석 엔진입니다.
-
-## 사용자 기록
-"${userLog}"
-
-## 임무 1: 심리 신호 분석 (0~3점 척도)
-아래 7개의 지표를 0~3 사이 정수로만 평가하고, JSON으로만 반환하세요.
-
-지표:
-- emotion_vs_logic
-- risk_avoidance
-- responsibility_avoidance
-- analysis_paralysis
-- priority_confusion
-- energy_level
-- novelty_drive
-
-## 임무 2: 맞춤형 행동 추천
-사용자의 상태를 반영한 구체적인 행동 1가지를 80자 이내로 써 주세요.
-
-## 출력 형식 (JSON Only)
-다음 형식의 JSON만 반환하세요. 설명 문장 없이 JSON만 출력합니다.
-
-{
-  "signals": {
-    "emotion_vs_logic": 0,
-    "risk_avoidance": 0,
-    "responsibility_avoidance": 0,
-    "analysis_paralysis": 0,
-    "priority_confusion": 0,
-    "energy_level": 0,
-    "novelty_drive": 0
-  },
-  "recommendedAction": "..."
-}
-`;
->>>>>>> 2ac8a0e (fix: 251207 2102)
-
         
     const modelName = "gemini-2.0-flash";
     const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent`;

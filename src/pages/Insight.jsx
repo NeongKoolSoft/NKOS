@@ -1,10 +1,10 @@
 // src/pages/Insight.jsx
-// 넝쿨 인사이트 v2.1
+// 넝쿨 인사이트 v2.2
 // - 최근 7일 / 30일 범위 선택
 // - nkos_logs 기반 모드 통계
 // - planner_items(user_id + date) 기반 실행률 통계
 // - 모드 분포 차트 / 실행률 타임라인
-// - 📈 모드 변화 타임라인 (새로 추가)
+// - 📈 모드 변화 타임라인 (Y축 모드 순서 고정 버전)
 // - 📊 모드 × 실행률 상관 분석
 
 import { useEffect, useState } from "react";
@@ -43,6 +43,47 @@ function getDateRange(rangeKey) {
   return { from, to };
 }
 
+// 🔹 모드 순서를 Y축 인덱스로 표현하기 위한 헬퍼들
+//    (Y축에 1~6 숫자를 찍고, tickFormatter로 다시 모드 이름으로 변환)
+const MODE_ORDER = [
+  "DELAY",
+  "STABILIZE",
+  "REFLECT",
+  "SIMPLIFY",
+  "DECISIVE",
+  "EXPLORATORY",
+];
+
+const MODE_Y = MODE_ORDER.reduce((acc, m, idx) => {
+  acc[m] = idx + 1; // 1 ~ 6
+  return acc;
+}, {});
+
+// 🔹 날짜 문자열 정규화 (YYYY-MM-DD)
+//    - log_date가 Date/문자열/타임존 상관없이 키를 일관되게 맞추기 위함
+function toDateKey(raw) {
+  if (!raw) return null;
+  const d = new Date(raw);
+  if (isNaN(d)) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+// ✅ 모드 변화 타임라인용 데이터 빌더
+//    - modeByDate(Map) : date(YYYY-MM-DD) → mode
+//    - 반환: [{ date, mode, y }]
+function buildModeTimelineFromDateMap(modeByDate) {
+  if (!modeByDate || modeByDate.size === 0) return [];
+
+  return Array.from(modeByDate.entries())
+    .map(([date, mode]) => {
+      const y = MODE_Y[mode];
+      if (y == null) return null; // 정의되지 않은 모드는 스킵
+      return { date, mode, y };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 // 모드별 평균 실행률 → 한 줄 요약 메시지
 function getModeRateInsight(modeRateAvg) {
   const entries = Object.entries(modeRateAvg);
@@ -73,34 +114,14 @@ function getModeRateInsight(modeRateAvg) {
   return `이번 기간에는 ${bestMode} 모드에서 평균 실행률이 가장 높았고, ${worstMode} 모드에서 가장 낮았어요.`;
 }
 
+// ⚠️ 아직 실제로는 사용하지 않는 함수라서 참고용으로만 남겨둠.
+//    컴포넌트 바깥에 있으므로 setLoading / setError 등을 여기서는 사용할 수 없음.
+//    (나중에 사용할 때는 반드시 컴포넌트 안으로 옮기거나, 필요한 값들을 인자로 받도록 수정해야 함)
+///*
 async function generateWeeklyReport() {
-  setLoading(true);
-  setError("");
-
-  try {
-    const response = await fetch("/api/insight/weekly-report", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId,
-        range,
-        modeTimeline,
-        plannerRates,
-        modeCounts,
-        avgRate,
-      }),
-    });
-
-    const { report } = await response.json();
-    setAiReport(report);
-  } catch (e) {
-    console.error("Weekly report error", e);
-    setError("리포트를 생성하는 중 문제가 발생했습니다.");
-  } finally {
-    setLoading(false);
-  }
+  // TODO: 나중에 Insight 컴포넌트 안으로 이동 또는 인자 기반으로 재구성
 }
-
+//*/
 
 function Insight() {
   const [userId, setUserId] = useState(null);
@@ -128,7 +149,7 @@ function Insight() {
   const [modeRateAvg, setModeRateAvg] = useState({});
 
   // 📈 모드 변화 타임라인 데이터
-  //   예: [{ date: '2025-12-03', mode: 'REFLECT', index: 1 }, ...]
+  //   예: [{ date: '2025-12-03', mode: 'REFLECT', y: 3 }, ...]
   const [modeTimeline, setModeTimeline] = useState([]);
 
   // 로그인 유저
@@ -167,27 +188,34 @@ function Insight() {
         // -------------------------------
         const { data: logs, error: logError } = await supabase
           .from("nkos_logs")
-          .select("mode, log_date")
+          .select("mode, log_date, created_at") // 🔹 created_at도 같이 가져오기
           .eq("user_id", userId)
           .gte("log_date", from)
           .lte("log_date", to)
-          .order("log_date", { ascending: true });
+          // 🔹 같은 날짜에 여러 줄이 있을 때, "가장 마지막 기록"을 대표로 쓰기 위해
+          //    log_date → created_at 순으로 정렬
+          .order("log_date", { ascending: true })
+          .order("created_at", { ascending: true });
 
         if (logError) throw logError;
 
         const modeCounts = {};
         const daySet = new Set();
-        const modeByDate = new Map(); // 날짜 → 대표 모드
+        const modeByDate = new Map(); // 날짜(YYYY-MM-DD) → 대표 모드
 
         logs?.forEach((row) => {
-          if (row.log_date) {
-            daySet.add(row.log_date);
+          const dateKey = toDateKey(row.log_date); // 🔹 log_date를 YYYY-MM-DD로 정규화
+          if (dateKey) {
+            daySet.add(dateKey);
+
             if (row.mode) {
               // 같은 날짜에 여러 줄이 있어도,
               // "하루를 대표하는 모드 1개"만 쓰기 위해 마지막 값만 저장
-              modeByDate.set(row.log_date, row.mode);
+              // (위에서 created_at ASC로 정렬했으므로, 마지막 루프가 그날의 마지막 기록)
+              modeByDate.set(dateKey, row.mode);
             }
           }
+
           if (row.mode) {
             modeCounts[row.mode] = (modeCounts[row.mode] || 0) + 1;
           }
@@ -209,15 +237,9 @@ function Insight() {
           topMode,
         });
 
-        // 📈 모드 변화 타임라인용 데이터 생성
-        const modeTimelineData = Array.from(modeByDate.entries())
-          .map(([date, mode]) => ({
-            date,
-            mode,
-            index: 1, // y축에 찍기 위한 더미 값 (항상 1)
-          }))
-          .sort((a, b) => (a.date < b.date ? -1 : 1));
-
+        // ✅ 모드 변화 타임라인용 데이터 생성
+        //    - 날짜별 대표 모드를 MODE_Y에 따라 1~6 숫자로 매핑
+        const modeTimelineData = buildModeTimelineFromDateMap(modeByDate);
         setModeTimeline(modeTimelineData);
 
         // -------------------------------
@@ -245,7 +267,8 @@ function Insight() {
           const byDate = new Map();
           items.forEach((row) => {
             if (!row.date) return;
-            const dateStr = row.date;
+            const dateStr = toDateKey(row.date); // 🔹 planner도 동일한 키 형식 사용
+            if (!dateStr) return;
             const completed = !!row.completed;
 
             if (!byDate.has(dateStr)) {
@@ -407,7 +430,7 @@ function Insight() {
             </h3>
           </div>
 
-        {Object.keys(modeCounts).length === 0 ? (
+          {Object.keys(modeCounts).length === 0 ? (
             <p className="text-xs text-slate-400">
               선택한 기간 동안의 모드 기록이 아직 많지 않아요.
             </p>
@@ -436,7 +459,7 @@ function Insight() {
             ) : (
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart 
+                  <BarChart
                     data={modeChartData}
                     margin={{ top: 10, right: 10, bottom: 20, left: -60 }}
                   >
@@ -462,9 +485,9 @@ function Insight() {
             ) : (
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart 
+                  <LineChart
                     data={ratesByDate}
-                    margin={{ top: 10, right: 10, bottom: 20, left: -20 }}                  
+                    margin={{ top: 10, right: 10, bottom: 20, left: -20 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="date" fontSize={11} />
@@ -502,8 +525,14 @@ function Insight() {
                 <LineChart data={modeTimeline}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="date" fontSize={11} />
-                  {/* y축은 의미 없는 더미 값이라 숨김 */}
-                  <YAxis hide domain={[0, 2]} />
+                  {/* ✅ Y축: 1~6 숫자를 모드 이름으로 변환해서 표시 */}
+                  <YAxis
+                    dataKey="y"
+                    domain={[1, MODE_ORDER.length]}
+                    ticks={MODE_ORDER.map((_, idx) => idx + 1)}
+                    tickFormatter={(v) => MODE_ORDER[v - 1] || ""}
+                    fontSize={11}
+                  />
                   <Tooltip
                     formatter={(_, __, props) =>
                       props && props.payload ? props.payload.mode : ""
@@ -512,20 +541,19 @@ function Insight() {
                   />
                   <Line
                     type="monotone"
-                    dataKey="index"
+                    dataKey="y"
                     strokeWidth={2}
                     dot={{ r: 4 }}
                     activeDot={{ r: 6 }}
                   >
-                    {/* 각 포인트 위에 모드 이름 표시 */}
-                    <LabelList dataKey="mode" position="top" fontSize={11} />
                   </Line>
                 </LineChart>
               </ResponsiveContainer>
             </div>
           )}
           <p className="text-[11px] text-slate-400">
-            한 눈에 최근 며칠 동안의 기조가 어떻게 바뀌었는지 볼 수 있는 타임라인이에요.
+            한 눈에 최근 며칠 동안의 기조가 어떻게 바뀌었는지 볼 수 있는
+            타임라인이에요.
           </p>
         </div>
 
@@ -565,6 +593,7 @@ function Insight() {
           </div>
         )}
       </div>
+
       {/* Insight 페이지 맨 아래에 추가 */}
       <div className="text-center mt-8 mb-4">
         <Link
@@ -573,9 +602,8 @@ function Insight() {
         >
           AI 주간 코칭 리포트 보러가기 →
         </Link>
-      </div>      
+      </div>
     </section>
-    
   );
 }
 

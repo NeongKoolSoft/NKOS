@@ -4,6 +4,7 @@
 import { goldSamples } from "./goldSamples.js";
 import { decideMode } from "../src/lib/modeEngine.js";
 import { getPatternBoosts } from "../src/lib/modePatterns.js";
+import { extractSignals } from "../src/lib/modeEngine.js";
 
 // 프론트가 사용하는 백엔드 엔드포인트 그대로 사용
 const BASE_URL = "http://localhost:3000/api/generate-action";

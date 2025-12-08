@@ -13,11 +13,8 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { formatKoreanTime } from "../utils/time";
-<<<<<<< HEAD
 import Footer from "../components/Footer";
-=======
 import AiErrorNotice from "../components/AiErrorNotice"; 
->>>>>>> 2ac8a0e (fix: 251207 2102)
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";

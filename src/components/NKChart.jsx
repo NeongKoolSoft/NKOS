@@ -1,3 +1,4 @@
+// src/components/NKChart.jsx
 import {
   ResponsiveContainer,
   LineChart,
@@ -23,13 +24,23 @@ const MODE_VITAL_SCORE = {
 function analyzeEmotion(text = "") {
   const t = text.toLowerCase();
 
-  if (t.includes("우울") || t.includes("불안") || t.includes("피곤") || t.includes("힘들"))
+  if (
+    t.includes("우울") ||
+    t.includes("불안") ||
+    t.includes("피곤") ||
+    t.includes("힘들")
+  )
     return -2;
 
   if (t.includes("짜증") || t.includes("귀찮") || t.includes("지루"))
     return -1;
 
-  if (t.includes("좋다") || t.includes("기분") || t.includes("활기") || t.includes("괜찮"))
+  if (
+    t.includes("좋다") ||
+    t.includes("기분") ||
+    t.includes("활기") ||
+    t.includes("괜찮")
+  )
     return +1;
 
   return 0; // 중립
@@ -46,26 +57,16 @@ function formatDate(raw) {
   return `${mm}-${dd} ${hh}:${mi}`;
 }
 
-// 로그 → 차트 데이터
-<<<<<<< HEAD
-function buildChartData(logs) {
-  const recent = [...logs].slice(-7); // 최근 7개
-
-  return recent.map((log, idx) => {
-    const dateStr = log.created_at || log.date;
-    return {
-      id: log.id ?? idx,
-      date: formatDate(dateStr),
-=======
-function buildChartData(nkos_logs) {
+// 로그 → 차트 데이터 (nkos_logs 기준)
+function buildChartData(nkos_logs = []) {
   const recent = [...nkos_logs].slice(-7); // 최근 7개
 
   return recent.map((log, idx) => {
-    const dateStr = log.created_at || log.log_date;
+    // created_at이 있으면 그걸 쓰고, 없으면 log_date / date 사용
+    const rawDate = log.created_at || log.log_date || log.date;
     return {
       id: log.id ?? idx,
-      log_date: formatDate(dateStr),
->>>>>>> 2ac8a0e (fix: 251207 2102)
+      date: formatDate(rawDate), // X축에 표시할 포맷된 날짜
       energy: MODE_VITAL_SCORE[log.mode] ?? 0,
       emotion: analyzeEmotion(log.text || log.message || ""),
       mode: log.mode,
@@ -80,11 +81,7 @@ function VitalTooltip({ active, payload }) {
 
   return (
     <div className="bg-white/95 border border-gray-200 rounded-xl px-3 py-2 text-xs shadow-sm">
-<<<<<<< HEAD
       <div className="font-semibold text-gray-700 mb-1">{p.date}</div>
-=======
-      <div className="font-semibold text-gray-700 mb-1">{p.log_date}</div>
->>>>>>> 2ac8a0e (fix: 251207 2102)
       <div className="text-pink-500 font-semibold">모드: {p.mode}</div>
       <div>에너지: {p.energy}</div>
       <div>감정: {p.emotion}</div>
@@ -92,13 +89,8 @@ function VitalTooltip({ active, payload }) {
   );
 }
 
-<<<<<<< HEAD
-function NKChart({ logs }) {
-  const data = buildChartData(logs);
-=======
 function NKChart({ nkos_logs }) {
-  const data = buildChartData(nkos_logs);
->>>>>>> 2ac8a0e (fix: 251207 2102)
+  const data = buildChartData(nkos_logs || []);
   if (!data.length) return null;
 
   return (
@@ -109,13 +101,12 @@ function NKChart({ nkos_logs }) {
 
       <div className="h-60">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
+          <LineChart
+            data={data}
+            margin={{ top: 20, right: 20, left: 0, bottom: 20 }}
+          >
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-<<<<<<< HEAD
             <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-=======
-            <XAxis dataKey="log_date" tick={{ fontSize: 10 }} />
->>>>>>> 2ac8a0e (fix: 251207 2102)
             <YAxis yAxisId="energy" domain={[1, 5]} hide />
             <YAxis yAxisId="emotion" domain={[-2, 2]} hide />
             <Tooltip content={<VitalTooltip />} />
