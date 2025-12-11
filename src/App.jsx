@@ -253,8 +253,14 @@ function App() {
           <Route path="/welcome" element={<Welcome />} />
 
           {/* 비로그인 랜딩 홈 (소개/스토리용) */}
+          
+          {/* ✅ 비로그인 기본 진입(/)을 Welcome 페이지로 변경 */}
+          <Route path="/" element={<Welcome />} />
+
+          {/* 필요하면 예전 랜딩은 /intro 같은 별도 경로로 살려둘 수 있음 */}
+          {/* 
           <Route
-            path="/"
+            path="/intro"
             element={
               <PublicHome
                 onClickStart={handleClickStart}
@@ -262,6 +268,7 @@ function App() {
               />
             }
           />
+        */}
 
           {/* /mode : 상단 헤더 + DailyLogInput + Footer
               → "기록 시작하기" 후 진입하는 체험용 모드 페이지 */}
