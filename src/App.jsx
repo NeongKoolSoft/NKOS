@@ -1,9 +1,9 @@
 // ============================================================================
 // App.jsx
 // 넝쿨OS 메인 엔트리
-// - 온보딩(튜토리얼) 1회 노출
+// - 광고 랜딩: /welcome (네이버 광고 전용 첫 화면)
 // - 비로그인: 랜딩(/), 모드 체험(/mode), 로그인(/login)
-// - 로그인: 모드, 히스토리, 플래너, 인사이트, Pro 안내 등 전체 기능
+// - 로그인: 온보딩(1회) → 모드, 히스토리, 플래너, 인사이트, Pro 안내 등
 // - 라우트 변경 시 항상 스크롤 최상단 이동
 // - 서버 콜드 스타트 웜업
 // ============================================================================
@@ -43,10 +43,10 @@ import Footer from "./components/Footer";
 // -------------------------
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
-import Planner from "./pages/PlannerPage";
-import Insight from "./pages/Insight";
 import PlannerPage from "./pages/PlannerPage";
+import Insight from "./pages/Insight";
 import InsightReport from "./pages/InsightReport";
+import Welcome from "./pages/Welcome"; // ★ 변경: 네이버 광고용 /welcome 랜딩 페이지
 
 // ============================================================================
 // 1) 공통 유틸 컴포넌트 : ScrollToTop
@@ -224,15 +224,9 @@ function App() {
   // ========================================================================
 
   // -------------------------
-  // (1) 온보딩 페이지
-  // - 조건: 아직 온보딩 안 봤고 + 로그인 안 되었고 + 약관/정책 페이지가 아닐 때
-  // -------------------------
-  if (!hasSeenOnboarding && !session && !isLegalPage) {
-    return <Onboarding onFinish={handleFinishOnboarding} />;
-  }
-
-  // -------------------------
-  // (2) 세션 로딩 중 (Supabase에서 세션 체크하는 동안)
+  // (1) 세션 로딩 중 (Supabase에서 세션 체크하는 동안)
+  // - 예전에는 여기 앞에서 "비로그인 온보딩"을 띄웠지만,
+  //   광고 랜딩(/welcome)을 살리기 위해 로딩 이후에만 온보딩을 체크하도록 변경함.
   // -------------------------
   if (loadingSession) {
     return (
@@ -243,8 +237,10 @@ function App() {
   }
 
   // -------------------------
-  // (3) 비로그인 상태
-  // - 랜딩(/), 체험용 모드(/mode), 로그인(/login), 정책/약관(/privacy, /terms)
+  // (2) 비로그인 상태
+  // - 광고 유입: /welcome
+  // - 일반 접속: /
+  // - 체험용 모드(/mode), 로그인(/login), 정책/약관(/privacy, /terms)
   // -------------------------
   if (!session) {
     return (
@@ -253,7 +249,10 @@ function App() {
         <ScrollToTop />
 
         <Routes>
-          {/* 비로그인 랜딩 홈 */}
+          {/* ★ 변경: 네이버 광고 전용 랜딩 페이지 */}
+          <Route path="/welcome" element={<Welcome />} />
+
+          {/* 비로그인 랜딩 홈 (소개/스토리용) */}
           <Route
             path="/"
             element={
@@ -281,7 +280,7 @@ function App() {
             }
           />
 
-          {/* 이메일 로그인 화면 */}
+          {/* 이메일/소셜 로그인 화면 */}
           <Route path="/login" element={<Login />} />
 
           {/* 정책/약관 페이지 (비로그인에서도 접근 가능) */}
@@ -293,7 +292,17 @@ function App() {
   }
 
   // -------------------------
-  // (4) 로그인 상태
+  // (3) 로그인 상태
+  // - 로그인 직후, 아직 온보딩을 보지 않았다면 온보딩 1회만 노출
+  // - 그 이후에는 기존처럼 메인 앱 라우트로 동작
+  // -------------------------
+  // ★ 변경: 온보딩은 "로그인 후 1번"만 보여주도록 위치 이동
+  if (!hasSeenOnboarding && !isLegalPage) {
+    return <Onboarding onFinish={handleFinishOnboarding} />;
+  }
+
+  // -------------------------
+  // (4) 로그인 + 온보딩 완료 상태
   // - HeaderMobile(햄버거 메뉴) + 라우트별 메인 콘텐츠
   // -------------------------
   return (
@@ -316,14 +325,14 @@ function App() {
           {/* 넝쿨 모드 히스토리 */}
           <Route path="/history" element={<HistoryPage />} />
 
-          {/* 넝쿨 플래너 / 넝쿨 인사이트 (준비/확장용) */}
+          {/* 넝쿨 플래너 / 넝쿨 인사이트 */}
           <Route path="/planner" element={<PlannerPage />} />
           <Route path="/insight" element={<Insight />} />
           <Route path="/insight/report" element={<InsightReport />} />
-          
+
           {/* Pro 안내 / 후원 안내 페이지 */}
           <Route path="/pro-support" element={<ProSupportPage />} />
-          
+
           {/* 정책/약관 (로그인 상태에서도 접근 가능) */}
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<Terms />} />
