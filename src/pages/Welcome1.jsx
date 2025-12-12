@@ -1,8 +1,8 @@
-// src/pages/Welcome.jsx (또는 파일 경로에 맞게 수정)
+// src/pages/Welcome1.jsx (또는 파일 경로에 맞게 수정)
 import Footer from "../components/Footer"; 
 import DemoFeature from "../components/DemoFeature"; // ✅ 맛보기 기능 import
 
-export default function Welcome() {
+export default function Welcome1() {
   // DemoFeature 내부에서 네비게이션을 처리하므로 여기서는 별도 핸들러가 필요 없습니다.
 
   return (
