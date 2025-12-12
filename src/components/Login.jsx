@@ -33,19 +33,8 @@ export default function Login() {
 
         {/* 🔹 안내 문구 (로그인 전에 유저 안심시키는 역할) */}
         <div className="max-w-sm text-center mb-6">
-          <p className="text-sm text-gray-600 leading-relaxed">
-            Google 로그인 과정에서 <strong className="text-gray-800">supabase.co</strong> 
-            도메인이 잠시 표시될 수 있어요.
-            <br />
-            이는 넝쿨OS가 사용하는 <strong className="text-gray-800">공식 인증 서비스</strong>이며,
-            <br />
-            <span className="text-blue-600 font-semibold">
-              비밀번호는 넝쿨OS에 저장되지 않습니다.
-            </span>
-          </p>
-
           <p className="mt-3 text-xs text-gray-500">
-            구글이 인증을 처리하고, 로그인 후 자동으로 넝쿨OS로 돌아옵니다.
+            “로그인해도 기록은 언제든 삭제 가능하며, Google 인증만 사용합니다. 비밀번호는 넝쿨OS에 저장되지 않습니다.”
           </p>
         </div>
 

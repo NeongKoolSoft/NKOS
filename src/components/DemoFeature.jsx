@@ -17,6 +17,12 @@ const MODE_LABEL = {
   REFLECT: "REFLECT : 성찰/내면 정리",
 };
 
+const handleLogin = () => {
+    // 🌟 [추가] 로그인 하러 가기 전에, 지금 쓴 글을 '주머니'에 넣어두기
+    sessionStorage.setItem("nkos_demo_text", text);
+    navigate("/login");
+  };
+
 export default function DemoFeature() {
   const navigate = useNavigate();
   const [text, setText] = useState("");

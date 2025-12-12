@@ -124,6 +124,20 @@ function DailyLogInput() {
   const [userStage, setUserStage] = useState("USER");
   const [showProModal, setShowProModal] = useState(false);
 
+  useEffect(() => {
+    // ... (기존 데이터 로딩 로직) ...
+
+    // 🌟 [추가] 체험판에서 쓴 글이 있나 확인하고 가져오기
+    const demoText = sessionStorage.getItem("nkos_demo_text");
+    if (demoText) {
+      setText(demoText); // 입력창에 자동 채움
+      sessionStorage.removeItem("nkos_demo_text"); // 한 번 썼으면 지우기
+      
+      // (선택사항) 바로 저장 버튼을 누르게 유도하거나, 
+      // extractSignals(demoText) 등을 호출해 미리 분석 결과를 보여줄 수도 있음
+    }
+  }, []);
+
   // ======================================================
   // 1. 초기 데이터 로드 (nkos_logs + user_stats)
   // ======================================================
