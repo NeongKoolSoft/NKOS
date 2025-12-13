@@ -209,6 +209,82 @@ function getDateRange(range) {
   };
 }
 
+// ============================================================
+// [ADD] Desire Signals 집계 (nkos_desire_signals 기반)
+// ============================================================
+
+function summarizeDesireSignals(rows = []) {
+  if (!rows.length) {
+    return {
+      days: 0,
+      avg: null,
+      topDomain: null,
+      lifeChapter: "UNKNOWN",
+      caution: null,
+    };
+  }
+
+  const days = rows.length;
+
+  // 평균
+  const avg = (key) =>
+    Math.round(
+      (rows.reduce((s, r) => s + (Number(r[key]) || 0), 0) / days) * 10
+    ) / 10;
+
+  const desireAvg = avg("desire_intensity");
+  const gapAvg = avg("gap_score");
+  const controlAvg = avg("control_score");
+  const fixationAvg = avg("fixation_score");
+
+  // Top 도메인
+  const domainCount = {};
+  rows.forEach((r) => {
+    if (!r.primary_domain) return;
+    domainCount[r.primary_domain] =
+      (domainCount[r.primary_domain] || 0) + 1;
+  });
+
+  let topDomain = null;
+  let topCnt = 0;
+  Object.entries(domainCount).forEach(([k, v]) => {
+    if (v > topCnt) {
+      topDomain = k;
+      topCnt = v;
+    }
+  });
+
+  // Life Chapter 분류 (욕망 vs 성취)
+  // 성취는 planner 실행률로 외부에서 보정됨
+  let lifeChapter = "UNKNOWN";
+  if (desireAvg >= 3 && gapAvg >= 3) lifeChapter = "갈증/방황";
+  else if (desireAvg >= 3 && gapAvg < 3) lifeChapter = "확장/도전";
+  else if (desireAvg < 3 && gapAvg < 3) lifeChapter = "안정/만족";
+  else if (desireAvg < 3 && gapAvg >= 3) lifeChapter = "정체/무기력";
+
+  // 주의 신호
+  let caution = null;
+  if (fixationAvg >= 4) {
+    caution = "욕망 대비 집착 신호가 높아 피로가 누적될 수 있어요.";
+  } else if (controlAvg <= 2) {
+    caution = "통제감이 낮아 무력감으로 이어질 가능성이 있어요.";
+  }
+
+  return {
+    days,
+    avg: {
+      desire: desireAvg,
+      gap: gapAvg,
+      control: controlAvg,
+      fixation: fixationAvg,
+    },
+    topDomain,
+    lifeChapter,
+    caution,
+  };
+}
+
+
 // 통계 (LLM이 이해하기 좋은 형태)
 function buildStats({ logs, plannerItems }) {
   const modeCounts = {};
@@ -305,6 +381,202 @@ function toLegacyReportText(reportJson) {
   return lines.join("\n");
 }
 
+// ============================================================
+// [ADD] Desire(욕망) Signal 추출 - A1 파이프라인용 유틸
+//  - 입력: nkos_logs 1건 (date + text)
+//  - 출력: nkos_desire_signals 1건 (1일 1 latest)
+// ============================================================
+
+// 1) 도메인 6 + NONE 고정 (DB enum과 동일해야 함)
+const DESIRE_DOMAINS = new Set([
+  "STABILITY",
+  "GROWTH",
+  "ACHIEVEMENT",
+  "RELATIONSHIP",
+  "FREEDOM",
+  "MEANING",
+  "NONE",
+]);
+
+// 2) 점수 보정 (0~5 정수)
+function clampInt(v, min = 0, max = 5, fallback = 0) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  const i = parseInt(n, 10);
+  return Math.max(min, Math.min(max, i));
+}
+
+// 3) LLM 출력이 흔들려도 프론트/DB가 절대 안 깨지게 서버에서 강제 정규화
+function normalizeDesireSignal(raw) {
+  const safe = raw && typeof raw === "object" ? raw : {};
+
+  const primary = DESIRE_DOMAINS.has(safe.primary_domain)
+    ? safe.primary_domain
+    : "MEANING";
+
+  const secondary = DESIRE_DOMAINS.has(safe.secondary_domain)
+    ? safe.secondary_domain
+    : "NONE";
+
+  const time_horizon = ["NOW", "SOON", "LATER"].includes(safe.time_horizon)
+    ? safe.time_horizon
+    : "NOW";
+
+  const signals = safe.signals && typeof safe.signals === "object" ? safe.signals : {};
+  const evidence = Array.isArray(safe.evidence_ko)
+    ? safe.evidence_ko
+        .filter((x) => typeof x === "string" && x.trim())
+        .map((x) => x.trim())
+        .slice(0, 3)
+    : [];
+
+  return {
+    schema_version: typeof safe.schema_version === "string" ? safe.schema_version : "desire_v1",
+    primary_domain: primary,
+    secondary_domain: secondary,
+
+    desire_intensity: clampInt(safe.desire_intensity),
+    gap_score: clampInt(safe.gap_score),
+    control_score: clampInt(safe.control_score),
+    fixation_score: clampInt(safe.fixation_score),
+
+    time_horizon,
+
+    urgency: clampInt(signals.urgency),
+    anxiety: clampInt(signals.anxiety),
+    clarity: clampInt(signals.clarity),
+
+    desire_summary_ko: typeof safe.desire_summary_ko === "string" ? safe.desire_summary_ko : "",
+    evidence_ko: evidence,
+
+    // raw_llm은 디버깅/재현용. 원치 않으면 저장 시 빼도 됨.
+    raw_llm: safe,
+  };
+}
+
+// 4) Gemini 프롬프트: "욕망 추출 전용" (JSON ONLY + 스키마 고정)
+function buildDesirePrompt({ date, logText }) {
+  return `
+You are a strict JSON generator for a Life OS.
+Output MUST be a single valid JSON object and nothing else.
+No markdown, no code fences, no explanations.
+
+Task: Extract desire signals from user's short daily log (1~3 lines).
+
+Domain meanings:
+- STABILITY: money/safety/risk avoidance/daily survival/keeping things from falling apart
+- GROWTH: learning/skill/career improvement/self-development
+- ACHIEVEMENT: finishing tasks/results/proving performance/completion
+- RELATIONSHIP: family/friends/connection/belonging/recognition
+- FREEDOM: time/autonomy/less constraint/travel/space
+- MEANING: purpose/values/identity/creativity/contribution/why-live
+
+Scoring guide:
+- desire_intensity: 0 none, 1 mild wish, 3 strong want, 5 urgent craving/obsession
+- gap_score: 0 aligned, 3 friction, 5 blocked/helpless
+- control_score: 0 helpless, 3 mixed, 5 fully controllable
+- fixation_score: 0 calm, 3 ruminating, 5 obsessive/very anxious
+- time_horizon: NOW (today/this week), SOON (this month/near future), LATER (someday/long-term)
+- signals:
+  - urgency: how urgent it feels
+  - anxiety: worry/pressure
+  - clarity: how clearly the desire is specified
+
+Input:
+- date: ${date}
+- user_log (raw):
+${JSON.stringify(String(logText || "").slice(0, 500))}
+
+Output schema (use only these keys, exact types):
+{
+  "schema_version": "desire_v1",
+  "primary_domain": "STABILITY|GROWTH|ACHIEVEMENT|RELATIONSHIP|FREEDOM|MEANING",
+  "secondary_domain": "STABILITY|GROWTH|ACHIEVEMENT|RELATIONSHIP|FREEDOM|MEANING|NONE",
+  "desire_intensity": 0,
+  "gap_score": 0,
+  "control_score": 0,
+  "fixation_score": 0,
+  "time_horizon": "NOW|SOON|LATER",
+  "signals": { "urgency": 0, "anxiety": 0, "clarity": 0 },
+  "desire_summary_ko": "string",
+  "evidence_ko": ["string"]
+}
+
+Rules:
+- JSON ONLY (no extra text)
+- Korean for *_ko fields
+- evidence_ko: 1~3 items, based only on the input log (no invention)
+- If uncertain: choose best guess, and set clarity lower.
+`.trim();
+}
+
+// 5) Bearer 토큰으로 user_id 확인 (보안)
+//    - 프론트는 supabase session.access_token을 Authorization: Bearer <token> 으로 보내면 됨.
+async function getUserFromBearer(req) {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token) return null;
+
+  const { data, error } = await supabaseAdmin.auth.getUser(token);
+  if (error) return null;
+  return data?.user || null;
+}
+
+// 6) nkos_desire_signals 저장: 1일 1개 latest 유지
+async function saveDesireSignalLatest({
+  userId,
+  logId,
+  signalDate, // 'YYYY-MM-DD'
+  desireNorm, // normalizeDesireSignal 결과
+}) {
+  // (1) 기존 latest를 false로 내림
+  const { error: downErr } = await supabaseAdmin
+    .from("nkos_desire_signals")
+    .update({ is_latest: false })
+    .eq("user_id", userId)
+    .eq("signal_date", signalDate)
+    .eq("is_latest", true);
+
+  if (downErr) throw downErr;
+
+  // (2) 새 레코드 insert (latest=true)
+  const payload = {
+    user_id: userId,
+    log_id: logId || null,
+    signal_date: signalDate,
+
+    schema_version: desireNorm.schema_version,
+    primary_domain: desireNorm.primary_domain,
+    secondary_domain: desireNorm.secondary_domain,
+
+    desire_intensity: desireNorm.desire_intensity,
+    gap_score: desireNorm.gap_score,
+    control_score: desireNorm.control_score,
+    fixation_score: desireNorm.fixation_score,
+
+    time_horizon: desireNorm.time_horizon,
+    urgency: desireNorm.urgency,
+    anxiety: desireNorm.anxiety,
+    clarity: desireNorm.clarity,
+
+    desire_summary_ko: desireNorm.desire_summary_ko,
+    evidence_ko: desireNorm.evidence_ko,
+    raw_llm: desireNorm.raw_llm,
+
+    is_latest: true,
+  };
+
+  const { data, error: insErr } = await supabaseAdmin
+    .from("nkos_desire_signals")
+    .insert(payload)
+    .select("*")
+    .single();
+
+  if (insErr) throw insErr;
+  return data;
+}
+
+
 app.post("/api/insight/weekly-report", async (req, res) => {
   console.log("🧠 [insight weekly-report] 요청 수신");
 
@@ -317,6 +589,24 @@ app.post("/api/insight/weekly-report", async (req, res) => {
     }
 
     const { safeRange, days, startISO, endISO, periodLabel } = getDateRange(range);
+
+    // 1-C) nkos_desire_signals 조회 (욕망 신호)
+    const { data: desireRows, error: desireErr } = await supabaseAdmin
+      .from("nkos_desire_signals")
+      .select("signal_date, primary_domain, desire_intensity, gap_score, control_score, fixation_score")
+      .eq("user_id", userId)
+      .eq("is_latest", true)
+      // signal_date는 date 컬럼이므로 YYYY-MM-DD 비교로 충분
+      .gte("signal_date", startISO.slice(0, 10))
+      .lte("signal_date", endISO.slice(0, 10))
+      .order("signal_date", { ascending: true });
+
+    // 실패해도 리포트는 계속 생성되게 안전 처리
+    const safeDesireRows = !desireErr && Array.isArray(desireRows) ? desireRows : [];
+    if (desireErr) {
+      console.warn("⚠️ nkos_desire_signals 조회 실패:", desireErr?.message);
+    }
+
 
     // ------------------------------------------------------------
     // 1) Supabase 조회
@@ -364,6 +654,52 @@ app.post("/api/insight/weekly-report", async (req, res) => {
       plannerItems: safePlannerItems || [],
     });
 
+    const desireSummary = summarizeDesireSignals(safeDesireRows);
+
+    // [ADD] 성취(achievement) = 플래너 실행률 기반(0~5 스케일로 변환)
+    const desireAvg = desireSummary?.avg?.desire; // 0~5
+    const achievementRate = stats.completionRate; // 0~100 or null
+    const achievementScore =
+      achievementRate == null ? null : Math.round(((achievementRate / 100) * 5) * 10) / 10; // 0~5 (소수 1자리)
+
+    // 행복(%) = 성취/욕망 * 100  (욕망 0이면 계산 불가)
+    const happiness =
+      Number.isFinite(desireAvg) && desireAvg > 0 && Number.isFinite(achievementScore)
+        ? Math.max(0, Math.min(100, Math.round((achievementScore / desireAvg) * 100)))
+        : null;
+
+    // [ADD] 날짜별 Life Chapter 타임라인 만들기
+    function classifyLifeChapter(desireAvg, gapAvg) {
+      if (!Number.isFinite(desireAvg) || !Number.isFinite(gapAvg)) return "UNKNOWN";
+      if (desireAvg >= 3 && gapAvg >= 3) return "갈증/방황";
+      if (desireAvg >= 3 && gapAvg < 3) return "확장/도전";
+      if (desireAvg < 3 && gapAvg < 3) return "안정/만족";
+      if (desireAvg < 3 && gapAvg >= 3) return "정체/무기력";
+      return "UNKNOWN";
+    }
+
+    const chapterTimeline = (safeDesireRows || []).map((r) => {
+      const d = Number(r.desire_intensity);
+      const g = Number(r.gap_score);
+      return {
+        date: r.signal_date,
+        chapter: classifyLifeChapter(d, g),
+        desire: d,
+        gap: g,
+      };
+    });
+
+
+    // ✅ 행복 = 성취/욕망 계산 (안전한 분모 처리)
+    // - 욕망(D): desire 평균
+    // - 갭(G): gap 평균
+    // - 성취(A): max(D - G, 0)
+    // - 행복(H): (A / max(D,1)) * 100
+    const D = Number(desireSummary.avg?.desire ?? 0);
+    const G = Number(desireSummary.avg?.gap ?? 0);
+    const A = Math.max(D - G, 0);
+    const H = Math.round((A / Math.max(D, 1)) * 100);
+
     const sampleLogs = (logs || []).slice(-20).map((log) => ({
       date: log.log_date || (log.created_at ? String(log.created_at).slice(0, 10) : ""),
       mode: log.mode || "",
@@ -391,6 +727,14 @@ app.post("/api/insight/weekly-report", async (req, res) => {
 - 모드 Top: ${stats.topMode || "N/A"}
 - 모드 분포: ${JSON.stringify(stats.modeCounts)}
 - 플래너 실행률: ${stats.completionRate == null ? "N/A" : stats.completionRate + "%"} (${stats.completedItems}/${stats.totalItems})
+
+[욕망 기반 관찰]
+- 욕망 기록 일수: ${desireSummary.days}
+- 주요 욕망 도메인: ${desireSummary.topDomain || "N/A"}
+- 평균 욕망 강도: ${desireSummary.avg?.desire ?? "N/A"}
+- 평균 현실 갭: ${desireSummary.avg?.gap ?? "N/A"}
+- 현재 Life Chapter 추정: ${desireSummary.lifeChapter}
+- 주의 신호: ${desireSummary.caution || "특이사항 없음"}
 
 [최근 기록 샘플]
 ${JSON.stringify(sampleLogs, null, 2)}
@@ -460,7 +804,25 @@ ${JSON.stringify(samplePlans, null, 2)}
     // ✅ 프론트 호환: report(string) 유지 + 확장용 data(json) 추가
     return res.json({
       ok: true,
-      data: safeReportJson,
+      data: {
+        ...safeReportJson,
+      life: {
+        topDesireDomain: desireSummary.topDomain,
+        lifeChapter: desireSummary.lifeChapter,
+
+        // 평균 욕망 신호(0~5)
+        desireAverages: desireSummary.avg,
+
+        // ✅ 추가: 욕망(D), 성취(A), 행복(H)
+        desire: D,           // 분모
+        achievement: A,      // 성취 체감(1차 MVP = D-G)
+        happiness: H,        // 0~100
+
+        caution: desireSummary.caution,
+        timeline: chapterTimeline, // [{date, chapter, desire, gap}, ...]
+      },
+
+      },
       report: legacyText,
     });
   } catch (e) {
@@ -468,6 +830,121 @@ ${JSON.stringify(samplePlans, null, 2)}
     return res.status(500).json({ ok: false, error: "WEEKLY_REPORT_FAILED" });
   }
 });
+
+// ============================================================
+// [ADD] /api/desire/extract (A1 트리거 엔드포인트)
+// - 목적: "로그 저장 직후" 프론트가 log_id를 보내면,
+//         서버가 nkos_logs를 읽고 → LLM 욕망 추출 → nkos_desire_signals 저장
+//
+// - 보안: Authorization Bearer 토큰으로 본인 확인
+//         본인 log_id만 처리 가능
+// ============================================================
+app.post("/api/desire/extract", async (req, res) => {
+  console.log("🌳 [desire extract] 요청 수신");
+
+  try {
+    // 0) 로그인 사용자 확인
+    const user = await getUserFromBearer(req);
+    if (!user) return res.status(401).json({ ok: false, error: "UNAUTHORIZED" });
+
+    const { log_id } = req.body || {};
+    if (!log_id || typeof log_id !== "string") {
+      return res.status(400).json({ ok: false, error: "INVALID_LOG_ID" });
+    }
+
+    // 1) nkos_logs에서 원본 로그 조회
+    //    - 필드명은 네 스샷 그대로: id, user_id, log_date, created_at, text
+    const { data: logRow, error: logErr } = await supabaseAdmin
+      .from("nkos_logs")
+      .select("id,user_id,log_date,created_at,text")
+      .eq("id", log_id)
+      .single();
+
+    if (logErr || !logRow) {
+      return res.status(404).json({ ok: false, error: "LOG_NOT_FOUND" });
+    }
+
+    // 2) 본인 로그인지 확인 (중요)
+    if (logRow.user_id !== user.id) {
+      return res.status(403).json({ ok: false, error: "FORBIDDEN" });
+    }
+
+    // 3) signal_date 결정
+    //    - nkos_logs.log_date가 date 타입이라 가장 안정적.
+    //    - 혹시 log_date가 null일 수 있으면 created_at으로 fallback.
+    const signalDate =
+      logRow.log_date ||
+      (logRow.created_at ? String(logRow.created_at).slice(0, 10) : null);
+
+    if (!signalDate) {
+      return res.status(400).json({ ok: false, error: "NO_SIGNAL_DATE" });
+    }
+
+    const logText = String(logRow.text || "").trim();
+    if (!logText) {
+      // 로그가 비어있으면 욕망 추출 의미 없음(정책상 빈 값 저장도 가능하나, 우선 실패 처리)
+      return res.status(400).json({ ok: false, error: "EMPTY_LOG_TEXT" });
+    }
+
+    // 4) Gemini 호출 (callGeminiSafe 재사용)
+    //    - weekly-report와 동일한 "JSON ONLY" 파싱/보정 패턴 적용
+    const prompt = buildDesirePrompt({ date: signalDate, logText });
+
+    const result = await callGeminiSafe({
+      prompt,
+      system: "You are a strict JSON generator. Output JSON only.",
+      maxOutputTokens: 600,
+    });
+
+    if (!result.ok) {
+      const status = result.errorCode?.includes("QUOTA") ? 429 : 503;
+      return res.status(status).json({
+        ok: false,
+        error: result.message,
+        code: result.errorCode,
+      });
+    }
+
+    // 5) JSON 파싱 (weekly-report와 동일 패턴)
+    const rawText = result.data.text();
+    const cleaned = String(rawText || "")
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
+
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    const jsonString = (jsonMatch ? jsonMatch[0] : "").trim();
+
+    let parsed = {};
+    try {
+      parsed = JSON.parse(jsonString);
+    } catch (e) {
+      console.error("❌ desire JSON parse fail:", e);
+      parsed = {}; // normalize에서 안전 보정
+    }
+
+    // 6) 서버 보정(절대 안 깨지게)
+    const desireNorm = normalizeDesireSignal(parsed);
+
+    // 7) 저장 (1일 1 latest 유지)
+    const saved = await saveDesireSignalLatest({
+      userId: user.id,
+      logId: logRow.id,
+      signalDate,
+      desireNorm,
+    });
+
+    // 8) 응답
+    return res.json({
+      ok: true,
+      data: saved,
+    });
+  } catch (e) {
+    console.error("❌ /api/desire/extract error:", e);
+    return res.status(500).json({ ok: false, error: "DESIRE_EXTRACT_FAILED" });
+  }
+});
+
 
 // ============================================================
 // 6) /api/generate-report (유지)

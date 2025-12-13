@@ -62,6 +62,10 @@ export default function HeaderMobile() {
               넝쿨 인사이트
             </Link>
 
+            <Link to="/life" onClick={() => setOpen(false)}>
+              넝쿨 라이프
+            </Link>            
+
             <hr className="my-2" />
 
             <Link to="/pro-support" onClick={() => setOpen(false)}>

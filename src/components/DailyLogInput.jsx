@@ -362,6 +362,9 @@ function DailyLogInput() {
 
       const savedData = data[0];
 
+      // ✅ [ADD] 넝쿨라이프용 욕망 신호 생성 트리거 (비동기, 실패해도 무시)
+      triggerDesireExtract({ logId: savedData.id });
+
       // 4) 프론트 상태에 로그 추가
       const updatedLogs = [...nkos_logs, savedData];
       setLogs(updatedLogs);
@@ -399,6 +402,34 @@ function DailyLogInput() {
       setIsSaving(false); // 저장 끝 → 로딩 false
     }
   };
+
+  // ✅ 로그 저장 직후 욕망 신호 추출(실패해도 무시: best-effort)
+  async function triggerDesireExtract({ logId }) {
+    try {
+      // access_token 필요 (서버에서 Bearer로 사용자 확인)
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token;
+      if (!token) return;
+
+      const resp = await fetch(`${API_BASE_URL}/api/desire/extract`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ log_id: logId }),
+      });
+
+      // 실패해도 앱 흐름은 유지 (콘솔만)
+      if (!resp.ok) {
+        const raw = await resp.text().catch(() => "");
+        console.warn("⚠️ desire/extract failed:", resp.status, raw.slice(0, 200));
+      }
+    } catch (e) {
+      console.warn("⚠️ desire/extract error:", e?.message || e);
+    }
+  }
+
 
   // ✅ 오늘 모드에 대한 "미니 인사이트" 생성 함수
   // - 최근 최대 7개의 로그를 기준으로
@@ -654,7 +685,7 @@ function DailyLogInput() {
               )}
 
               {/* 2) Top1 + Top2 조합 스토리 카드 */}
-              <ModeStoryCard primary={mode} secondary={secondaryMode} />
+              <ModeStoryCard primary={primaryMode} secondary={top2} />
 
               {/* 3) 오늘 모드에 대한 "한 줄 인사이트" */}
               <div className="nk-card nk-card-soft mt-3">

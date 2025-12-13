@@ -298,13 +298,6 @@ const handleGenerateReport = async () => {
         {/* --------------------------------------------- */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="nk-title-main text-2xl font-bold">히스토리</h2>
-
-          <button
-            onClick={handleGenerateReport}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-full shadow-md"
-          >
-            ✨ 주간 리포트 분석
-          </button>
         </div>
 
         {/* --------------------------------------------- */}

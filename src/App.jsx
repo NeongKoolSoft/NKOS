@@ -47,6 +47,7 @@ import PlannerPage from "./pages/PlannerPage";
 import Insight from "./pages/Insight";
 import InsightReport from "./pages/InsightReport";
 import Welcome from "./pages/Welcome"; // ★ 변경: 네이버 광고용 /welcome 랜딩 페이지
+import LifePage from "./pages/LifePage";
 
 // ============================================================================
 // 1) 공통 유틸 컴포넌트 : ScrollToTop
@@ -292,7 +293,7 @@ function App() {
 
           {/* 정책/약관 페이지 (비로그인에서도 접근 가능) */}
           <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/terms" element={<Terms />} />
+          <Route path="/terms" element={<Terms />} />          
         </Routes>
       </>
     );
@@ -327,6 +328,7 @@ function App() {
           <Route path="/planner" element={<PlannerPage />} />
           <Route path="/insight" element={<Insight />} />
           <Route path="/insight/report" element={<InsightReport />} />
+          <Route path="/life" element={<LifePage />} />
 
           {/* Pro 안내 / 후원 안내 페이지 */}
           <Route path="/pro-support" element={<ProSupportPage />} />
