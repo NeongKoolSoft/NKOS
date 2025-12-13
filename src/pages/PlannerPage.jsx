@@ -18,9 +18,30 @@ import {
   fetchModeForDate,
 } from "../lib/plannerRepository";
 
+// ✅ KST 기준 날짜 유틸 (브라우저 로컬시간이 한국이라는 가정. 필요하면 타임존 보정 가능)
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+function toDateString(d) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+function addDays(dateStr, delta) {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + delta);
+  return toDateString(d);
+}
+
+// ✅ 플래너 기준일: 새벽 5시 이전이면 "어제"를 기본으로
+function getPlannerBaseDateString(cutoffHour = 5) {
+  const now = new Date();
+  const today = toDateString(now);
+  if (now.getHours() < cutoffHour) return addDays(today, -1);
+  return today;
+}
+
 function PlannerPage() {
   const [userId, setUserId] = useState(null);
-  const [date, setDate] = useState(getTodayDateString());
+  const [date, setDate] = useState(() => getPlannerBaseDateString(5));
 
   const [entry, setEntry] = useState(null); // nkos_planner_entries
   const [items, setItems] = useState([]); // planner_items
@@ -28,6 +49,7 @@ function PlannerPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [carryItems, setCarryItems] = useState([]); // ✅ 어제 미완료 아이템
 
   const [modeForDate, setModeForDate] = useState(null);
   const [completionStats, setCompletionStats] = useState({
@@ -82,6 +104,21 @@ function PlannerPage() {
       try {
         // 2-1) 플래너 헤더 + 아이템
         const { entry, items } = await fetchPlannerForDate(userId, date);
+
+        // ✅ 어제 미완료 이어하기: "오늘 플래너"를 보고 있을 때만 노출
+        try {
+          const todayKey = getTodayDateString(); // 기존 유틸 사용
+          if (date === todayKey) {
+            const yKey = addDays(todayKey, -1);
+            const y = await fetchPlannerForDate(userId, yKey);
+            const undone = (y?.items || []).filter((it) => !it?.completed && (it?.text || "").trim());
+            setCarryItems(undone);
+          } else {
+            setCarryItems([]);
+          }
+        } catch {
+          setCarryItems([]);
+        }
 
         setEntry(
           entry || {
@@ -391,6 +428,80 @@ function PlannerPage() {
             </button>
           </div>
         </div>        
+
+        {/* ✅ 어제 미완료 이어하기 (오늘 날짜일 때만) */}
+        {carryItems.length > 0 && (
+          <div className="nk-card-soft space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-gray-700">⏳ 어제 미완료 이어하기</div>
+              <div className="text-xs text-gray-500">미완료 {carryItems.length}개</div>
+            </div>
+
+            <div className="text-xs text-gray-600 leading-relaxed">
+              자정이 지나도 계획이 사라진 게 아니에요. 어제 남은 줄을 오늘로 가져올 수 있어요.
+            </div>
+
+            <div className="rounded-xl border bg-white p-3 text-sm space-y-1">
+              {carryItems.slice(0, 3).map((it, i) => (
+                <div key={it.id ?? i} className="text-gray-800">
+                  <span className="text-gray-400 mr-2">{i + 1})</span>
+                  {it.text}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                className="nk-btn-primary text-xs px-3 py-2 rounded-lg"
+                disabled={saving || items.length >= 3}
+                onClick={async () => {
+                  if (!userId) return;
+                  if (items.length >= 3) {
+                    alert("오늘 계획이 이미 3줄이에요. 먼저 줄을 비워주세요.");
+                    return;
+                  }
+                  try {
+                    setSaving(true);
+                    // 오늘 계획에 이어 붙이기 (최대 3줄)
+                    const todayKey = date;
+                    const canTake = 3 - items.length;
+                    const toTake = carryItems.slice(0, canTake).map((x) => ({
+                      id: null,
+                      text: x.text,
+                      completed: false,
+                    }));
+
+                    // entry 보장
+                    await upsertPlannerEntry(userId, todayKey, entry || { title: "", status: "", note: "" });
+
+                    // 로컬 반영
+                    const nextLocal = [...items, ...toTake];
+                    setItems(nextLocal);
+
+                    // DB 저장
+                    const savedRows = [];
+                    for (let i = 0; i < toTake.length; i++) {
+                      const saved = await savePlannerItem(userId, todayKey, toTake[i]);
+                      savedRows.push(saved);
+                    }
+                    setItems((prev) => {
+                      const kept = prev.slice(0, prev.length - toTake.length);
+                      return [...kept, ...savedRows];
+                    });
+                  } catch (e) {
+                    console.error(e);
+                    alert("이어붙이기 중 오류가 발생했습니다.");
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+              >
+                오늘 계획에 이어붙이기
+              </button>
+            </div>
+          </div>
+        )}
+
 
         {/* 하루 3줄 계획 */}
         <div className="nk-card space-y-3">

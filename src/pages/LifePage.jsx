@@ -418,19 +418,6 @@ export default function LifePage() {
     <div style={{ maxWidth: 760, margin: "0 auto", padding: 16 }}>
       {/* 상단 헤더 */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-        <button
-          onClick={() => navigate(-1)}
-          style={{
-            border: "1px solid #e5e7eb",
-            padding: "8px 12px",
-            borderRadius: 10,
-            background: "white",
-            cursor: "pointer",
-          }}
-        >
-          ← 돌아가기
-        </button>
-
         <div>
           <div style={{ fontSize: 18, fontWeight: 800 }}>넝쿨라이프</div>
           <div style={{ fontSize: 12, color: "#6b7280" }}>최근 7일 기반의 삶의 국면(챕터) & 이동</div>
