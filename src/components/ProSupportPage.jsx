@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
-const SUPPORT_EMAIL = "pke7709@naver.com"; // ✅ 넝쿨이 실제 받을 메일로 변경
+const SUPPORT_EMAIL = "pke7709@gmail.com"; // ✅ 넝쿨이 실제 받을 메일로 변경
 
 function ProSupportPage() {
   const [user, setUser] = useState(null);
@@ -101,7 +101,9 @@ function ProSupportPage() {
           Pro 활성화 요청
         </h2>
         <p className="text-xs text-gray-600 mb-4 leading-relaxed">
-          카카오톡으로 후원해주셔서 감사합니다 🌱
+          토스뱅크 1002-2656-2081 박경은
+          <br />
+          후원해주셔서 감사합니다 🌱
           <br />
           아래 정보를 남겨주시면, 확인 후 24시간 이내에 Pro 권한을 열어드립니다.
         </p>
@@ -141,7 +143,7 @@ function ProSupportPage() {
               </label>
               <textarea
                 rows={3}
-                placeholder="예: 카카오뱅크에서 홍길동 이름으로 송금했습니다."
+                placeholder="예: 00뱅크에서 홍길동 이름으로 송금했습니다."
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 className="w-full border rounded-lg px-3 py-2 text-sm"
