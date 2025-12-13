@@ -1,13 +1,5 @@
 // src/pages/InsightReport.jsx
-// 넝쿨 인사이트 - 주간 코칭 리포트 전용 페이지 v1
-//
-// 예상 API 계약:
-//   POST /api/insight/weekly-report
-//   body: { userId: string, range: "7d" | "30d" }
-//   res:  { report: string }
-//
-// ※ 실제 DB 조회/분석/LLM 호출 로직은 서버에서 처리하고,
-//    프론트는 "userId + 기간"만 넘겨받는 구조로 단순화.
+// 넝쿨 인사이트 - 주간/월간 코칭 리포트(JSON 고정) v2
 
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
@@ -28,7 +20,9 @@ function InsightReport() {
   const [loadingReport, setLoadingReport] = useState(false);
 
   const [error, setError] = useState("");
-  const [report, setReport] = useState("");
+
+  // ✅ 변경: 문자열 report → JSON reportData
+  const [reportData, setReportData] = useState(null);
 
   // 1) 로그인 유저 확인
   useEffect(() => {
@@ -56,7 +50,7 @@ function InsightReport() {
     loadUser();
   }, []);
 
-  // 2) 리포트 생성 호출
+  // 2) 리포트 생성 호출 (✅ JSON 응답 전제)
   const handleGenerateReport = async () => {
     if (!userId) return;
 
@@ -64,27 +58,34 @@ function InsightReport() {
       setError("");
       setLoadingReport(true);
 
-      const res = await fetch("/api/insight/weekly-report", {
+      // ✅ 중요: 배포/로컬 모두 안정적으로 동작하게 API_BASE_URL 사용 권장
+      const API_BASE_URL =
+        import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+
+      const res = await fetch(`${API_BASE_URL}/api/insight/weekly-report`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, range }),
       });
 
-      if (!res.ok) {
-        throw new Error("weekly-report api error");
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || "weekly-report api error");
       }
 
-      const json = await res.json();
-      setReport(json.report || "");
+      // ✅ 서버가 보정해준 data를 그대로 UI에 사용
+      setReportData(json.data || null);
     } catch (e) {
       console.error("InsightReport - generate error:", e);
       setError("리포트를 생성하는 중 문제가 발생했습니다.");
+      setReportData(null);
     } finally {
       setLoadingReport(false);
     }
   };
 
-  // 3) 페이지 첫 진입 시 자동 한 번 생성 (선택 사항)
+  // 3) 진입/기간 변경 시 자동 생성
   useEffect(() => {
     if (!loadingUser && userId) {
       handleGenerateReport();
@@ -97,9 +98,27 @@ function InsightReport() {
   return (
     <section className="py-6 px-5 pb-20">
       <div className="max-w-3xl mx-auto space-y-6">
-        {/* 헤더 영역 */}
+        {/* 헤더 */}
         <div className="flex items-center justify-between gap-3">
           <div>
+            {/* 상단 네비게이션 영역 */}
+            <div className="mb-3">
+              <button
+                onClick={() => navigate(-1)}
+                className="
+                  flex items-center gap-1
+                  px-3 h-9
+                  rounded-full
+                  border border-gray-300
+                  text-gray-600 text-sm
+                  hover:bg-gray-100
+                  transition
+                "
+              >
+                <span className="text-base leading-none">←</span>
+                <span>돌아가기</span>
+              </button>
+            </div>            
             <h2 className="nk-title-main text-2xl font-bold">
               넝쿨 주간 코칭 리포트
             </h2>
@@ -108,22 +127,16 @@ function InsightReport() {
               <br className="hidden md:block" />
               넝쿨OS가 따뜻한 코칭 리포트를 만들어 드립니다.
             </p>
-          </div>
-
-          <button
-            onClick={() => navigate("/insight")}
-            className="text-[11px] px-3 py-1.5 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50"
-          >
-            ← 돌아가기
-          </button>
+          </div> 
         </div>
 
-        {/* 기간 선택 + 리포트 새로 생성 버튼 */}
+        {/* 기간 선택 + 다시 생성 */}
         <div className="nk-card-soft flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="space-y-1">
             <div className="text-xs font-semibold text-slate-500">
               리포트 기준 기간
             </div>
+
             <div className="inline-flex rounded-full bg-slate-100 p-1 text-xs">
               {RANGE_OPTIONS.map((opt) => (
                 <button
@@ -151,6 +164,7 @@ function InsightReport() {
             >
               {loadingReport ? "리포트 생성 중..." : "리포트 다시 생성"}
             </button>
+
             <span className="text-[10px] text-slate-400">
               * 넝쿨Mode + 넝쿨플래너 데이터를 기반으로 코칭 문장을 생성해요.
             </span>
@@ -161,8 +175,8 @@ function InsightReport() {
           <div className="nk-banner-strong text-xs md:text-sm">{error}</div>
         )}
 
-        {/* 리포트 본문 영역 */}
-        <div className="nk-card-soft space-y-3 min-h-[200px]">
+        {/* ✅ 리포트 본문: JSON 카드형 렌더링 */}
+        <div className="nk-card-soft space-y-5 min-h-[200px]">
           <div className="text-xs font-semibold text-slate-500">
             📝 이번 기간 넝쿨님의 흐름
           </div>
@@ -173,7 +187,7 @@ function InsightReport() {
             </p>
           )}
 
-          {!isBusy && !report && !error && (
+          {!isBusy && !reportData && !error && (
             <p className="text-xs text-slate-500 leading-relaxed">
               아직 리포트가 생성되지 않았어요.
               <br />
@@ -183,14 +197,65 @@ function InsightReport() {
             </p>
           )}
 
-          {report && (
-            <article className="text-sm whitespace-pre-line leading-relaxed text-slate-800">
-              {report}
-            </article>
+          {!isBusy && reportData && (
+            <div className="space-y-4">
+              {/* 1) 한 줄 요약 */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="text-xs font-semibold text-slate-500 mb-2">
+                  {reportData.periodLabel}
+                </div>
+                <div className="text-base font-semibold text-slate-900">
+                  {reportData.oneLineSummary}
+                </div>
+              </div>
+
+              {/* 2) 잘 유지된 점 */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="text-xs font-semibold text-slate-500 mb-2">
+                  ✅ 잘 유지된 점
+                </div>
+                <ul className="list-disc pl-5 space-y-1 text-sm text-slate-800">
+                  {reportData.highlights?.map((t, i) => (
+                    <li key={i}>{t}</li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* 3) 관찰된 패턴 */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="text-xs font-semibold text-slate-500 mb-2">
+                  🔎 관찰된 패턴
+                </div>
+                <ul className="list-disc pl-5 space-y-1 text-sm text-slate-800">
+                  {reportData.patterns?.map((t, i) => (
+                    <li key={i}>{t}</li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* 4) 다음 기간 제안 */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="text-xs font-semibold text-slate-500 mb-2">
+                  🎯 다음 기간 제안
+                </div>
+                <ol className="list-decimal pl-5 space-y-1 text-sm text-slate-800">
+                  {reportData.nextActions?.map((t, i) => (
+                    <li key={i}>{t}</li>
+                  ))}
+                </ol>
+              </div>
+
+              {/* 5) 마무리 */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="text-sm text-slate-700 leading-relaxed">
+                  {reportData.closing}
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
-        {/* 향후 확장 영역: 리포트 히스토리 / PDF / 공유 등 */}
+        {/* 확장 안내 */}
         <div className="nk-card-soft space-y-2">
           <div className="text-xs font-semibold text-slate-500">
             📂 앞으로 추가될 기능

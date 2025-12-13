@@ -22,6 +22,8 @@ import {
   LabelList, // ← 모드 라벨 표시용
 } from "recharts";
 import { Link } from "react-router-dom";
+import { Sparkles } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const RANGE_OPTIONS = [
   { key: "7d", label: "최근 7일" },
@@ -124,6 +126,7 @@ async function generateWeeklyReport() {
 //*/
 
 function Insight() {
+  const navigate = useNavigate();
   const [userId, setUserId] = useState(null);
   const [range, setRange] = useState("7d");
 
@@ -595,13 +598,26 @@ function Insight() {
       </div>
 
       {/* Insight 페이지 맨 아래에 추가 */}
-      <div className="text-center mt-8 mb-4">
-        <Link
-          to="/insight/report"
-          className="text-[12px] text-nk-primary underline underline-offset-2 font-medium"
-        >
-          AI 주간 코칭 리포트 보러가기 →
-        </Link>
+      <div className="mt-6">
+        {/* 버튼 영역 */}
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={() => navigate("/insight/report")}
+            className="
+              flex items-center gap-2
+              px-5 py-3
+              rounded-full
+              bg-gradient-to-r from-indigo-500 to-blue-600
+              text-white font-semibold text-sm
+              shadow-md
+              hover:shadow-lg
+              hover:from-indigo-600 hover:to-blue-700
+              transition-all
+            "
+          >
+            ✨ AI 주간 코칭 리포트 분석
+          </button>
+        </div>
       </div>
     </section>
   );
