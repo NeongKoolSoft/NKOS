@@ -38,6 +38,12 @@ export function decideModesWithMeta(signals, patternBoosts, prevMode) {
   const ranked = rankModes(scores);
 
   let primary = ranked[0].mode;
+
+  // ✅ 메타 버전에도 동일 게이트 적용 (UI primary 안정화)
+  if (primary === "DECISIVE" && (signals?.energy_level ?? 0) < 2) {
+    primary = ranked.find((r) => r.mode !== "DECISIVE")?.mode || "STABILIZE";
+  }
+
   const primaryScore = ranked[0].score;
   const prevScore = prevMode ? scores[prevMode] : null;
 
@@ -65,6 +71,24 @@ export function decideModesFromText(text, prevMode) {
   return decideModesWithMeta(signals, patternBoosts, prevMode);
 }
 
+export function decideModesFromSignals(signals, patternBoosts = {}, prevMode = null) {
+  // 내부에서 쓰는 "각 모드 점수 계산" 로직이 이미 있을 거야.
+  // 예: getModeScores(signals, patternBoosts, prevMode) 같은 함수가 있으면 그걸 호출.
+  // 없으면 decideMode에서 쓰는 점수 계산 부분을 함수로 분리하는 게 베스트.
+
+  const scores = getModeScores(signals, patternBoosts, prevMode); // { DELAY: 12.3, STABILIZE: 4.2, ... }
+
+  const ranked = Object.entries(scores)
+    .map(([mode, score]) => ({ mode, score }))
+    .sort((a, b) => b.score - a.score);
+
+  return {
+    primary: ranked[0]?.mode ?? null,
+    secondary: ranked[1]?.mode ?? null,
+    ranked,
+    scores,
+  };
+}
 
 // 신호 + 패턴 + 이전 모드 → 점수 계산 (FSM v3)
 // signals + patternBoosts + prevMode → 모드 점수 계산
@@ -89,7 +113,7 @@ export function computeScores(signals, patternBoosts, prevMode) {
       1.4 * pc +        // 우선순위 혼란
       1.0 * (3 - en) +  // 에너지 낮을수록 지연
       0.8 * resp +      // 책임 회피/부담
-      (p.DELAY || 0),
+      (p.DELAY || 0),   
 
     // STABILIZE: 루틴/기본기·컨디션 회복
     STABILIZE:
@@ -108,9 +132,9 @@ export function computeScores(signals, patternBoosts, prevMode) {
       0.5 * (3 - en) +  // 에너지가 너무 높진 않을 때
       (p.REFLECT || 0),
 
-    // SIMPLIFY: 복잡한 걸 줄이고 핵심만 남기려는 상태
+   // SIMPLIFY: 복잡한 걸 줄이고 핵심만 남기려는 상태
     SIMPLIFY:
-      2.0 * pc +        // 우선순위 혼잡 → 정리 욕구
+      1.5 * pc +        // 우선순위 혼잡 → 정리 욕구
       0.7 * ap +        // 생각은 좀 많고
       0.5 * (3 - en) +  // 에너지는 아주 높지 않음
       0.3 * ea +        // 약간의 답답함/부담
@@ -159,6 +183,14 @@ export function computeScores(signals, patternBoosts, prevMode) {
     adjusted.DECISIVE -= 0.5;
   }
 
+  // 🔴 DELAY 우선 보호 규칙
+  // 마비 + 혼란 + 에너지 저하 → '아직 정리할 단계 아님'
+  if (ap >= 2 && pc >= 2 && en <= 1) {
+    adjusted.DELAY += 2.5;
+    adjusted.SIMPLIFY -= 2.0;
+    adjusted.STABILIZE -= 1.0;
+  }  
+
   // 2-3) 우선순위 혼잡 + 마비 → SIMPLIFY 보정
   if (pc >= 2 && ap >= 1 && en <= 1) {
     adjusted.SIMPLIFY += 1.5;
@@ -183,6 +215,36 @@ export function computeScores(signals, patternBoosts, prevMode) {
     adjusted.STABILIZE += 2;
     adjusted.DECISIVE  -= 1;
     adjusted.EXPLORATORY -= 1;
+  }
+
+  // ✅ DECISIVE는 "에너지"가 핵심이다.
+  // en이 낮으면 (3-ap,3-pc,3-ra)로 점수가 커지는 버그가 생기므로 강하게 차단.
+  if (en <= 1) {
+    adjusted.DECISIVE -= 6.0; // ⭐ 핵심: en 0~1이면 DECISIVE 거의 불가
+  }
+
+  // ✅ EXPLORATORY(새로움=3)는 DECISIVE보다 우선되게
+  if (nv >= 3) {
+    adjusted.EXPLORATORY += 3.0;
+    adjusted.DECISIVE -= 3.0;
+  }
+
+  // ✅ 혼란/마비가 높으면 결단이 아니라 지연/정리 쪽이다
+  if (ap >= 2 || pc >= 2) {
+    adjusted.DECISIVE -= 2.5;
+  }
+
+  // ✅ SIMPLIFY 의도(줄이기/세 개만/3줄/최소화)가 보이면
+  // 에너지가 낮아도 DELAY보다 SIMPLIFY를 우선
+  if ((p.SIMPLIFY || 0) >= 1) {
+    adjusted.SIMPLIFY += 2.0;
+    adjusted.DELAY -= 1.0;
+  }
+
+  // ✅ pc/ap가 둘 다 높으면: "마비"가 아니라 "정리 욕구"로 해석
+  if (pc >= 2 && ap >= 2) {
+    adjusted.SIMPLIFY += 1.5;
+    adjusted.DELAY -= 0.5;
   }
 
   // 4) 이전 모드 관성/전이 규칙
@@ -225,19 +287,73 @@ export function computeScores(signals, patternBoosts, prevMode) {
   return finalScores;
 }
 
-
-
 // 최고 점수 모드 선택
 export function decideMode(signals, patternBoosts, prevMode) {
   const scores = computeScores(signals, patternBoosts, prevMode);
   const entries = Object.entries(scores).sort((a, b) => b[1] - a[1]);
   const [bestMode, bestScore] = entries[0];
 
+  // ✅ 최종 안전장치: en<2면 DECISIVE 금지
+  if (bestMode === "DECISIVE" && (signals?.energy_level ?? 0) < 2) {
+    // DECISIVE 제외하고 다시 선택
+    const filtered = entries.filter(([m]) => m !== "DECISIVE");
+    const [nextMode] = filtered[0] || ["STABILIZE"];
+    return nextMode;
+  }
+
+
   if (prevMode && scores[prevMode] >= bestScore - 1) {
     return prevMode;
   }
 
   return bestMode;
+}
+
+// ✅ Top1/Top2 + gap + blend + scores까지 제공
+export function getModeRanking(
+  signals,
+  patternBoosts,
+  prevMode,
+  opts = {}
+) {
+  const {
+    gapForBlend = 1.2,      // gap이 이 값 이하이면 "blend 후보"로 표시
+    prevModeHoldGap = 1.0,  // 기존 로직: prevMode 유지 조건
+  } = opts;
+
+  const scores = computeScores(signals, patternBoosts, prevMode);
+  const entries = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+
+  // 방어
+  const [m1, s1] = entries[0] ?? ["STABILIZE", 0];
+  const [m2, s2] = entries[1] ?? ["STABILIZE", -Infinity];
+
+  // ✅ 최종 안전장치: energy<2면 DECISIVE 금지 (Top1/Top2 재계산)
+  let filteredEntries = entries;
+  if ((signals?.energy_level ?? 0) < 2) {
+    filteredEntries = entries.filter(([m]) => m !== "DECISIVE");
+  }
+
+  const [fm1, fs1] = filteredEntries[0] ?? ["STABILIZE", 0];
+  const [fm2, fs2] = filteredEntries[1] ?? ["STABILIZE", -Infinity];
+
+  const gap = (fs1 ?? 0) - (fs2 ?? -Infinity);
+  const blend = gap <= gapForBlend;
+
+  // ✅ prevMode 유지(스티키) 로직 반영한 최종모드
+  let finalMode = fm1;
+  if (prevMode && scores[prevMode] >= (fs1 - prevModeHoldGap)) {
+    finalMode = prevMode;
+  }
+
+  return {
+    scores, // 전체 점수(디버그용)
+    top1: { mode: fm1, score: fs1 },
+    top2: { mode: fm2, score: fs2 },
+    gap,
+    blend,
+    finalMode,
+  };
 }
 
 // 텍스트 + 이전 모드 → 오늘 모드

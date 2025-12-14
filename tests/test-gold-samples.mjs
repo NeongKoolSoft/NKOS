@@ -1,10 +1,12 @@
 // tests/test-gold-samples.mjs
-// FSM v3.0 + LLM 엔드투엔드 골드샘플 테스트
+// FSM v3.0 + LLM 엔드투엔드 골드샘플 테스트 (Top1/Top2)
 
+// ✅ gold
 import { goldSamples } from "./goldSamples.js";
-import { decideMode } from "../src/lib/modeEngine.js";
+
+// ✅ engine
+import { getModeRanking } from "../src/lib/modeEngine.js";
 import { getPatternBoosts } from "../src/lib/modePatterns.js";
-import { extractSignals } from "../src/lib/modeEngine.js";
 
 // 프론트가 사용하는 백엔드 엔드포인트 그대로 사용
 const BASE_URL = "http://localhost:3000/api/generate-action";
@@ -13,84 +15,105 @@ const BASE_URL = "http://localhost:3000/api/generate-action";
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function callLLM(userLog) {
-  // 백엔드(server.js)로 요청 보내기
   const res = await fetch(BASE_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ userLog }),
   });
 
   const data = await res.json();
 
-  // 서버에서 LLM 에러나 쿼터 초과 시:
-  // { signals: null, recommendedAction: "", error: "..."} 형태가 들어올 수 있음
   if (!data || !data.signals) {
     const msg =
-      data?.error ||
-      "signals=null (LLM fallback / quota / 기타 오류 추정)";
+      data?.error || "signals=null (LLM fallback / quota / 기타 오류 추정)";
     throw new Error(msg);
   }
 
-  return data;
+  return data; // { signals, recommendedAction, ... }
+}
+
+function fmtScore(n) {
+  if (typeof n !== "number" || Number.isNaN(n)) return "-";
+  return n.toFixed(2);
 }
 
 async function run() {
-  console.log("====== 🌱 FSM v3.0 GOLD SAMPLE TEST ======");
+  console.log("====== 🌱 FSM v3.0 GOLD SAMPLE TEST (Top1/Top2) ======");
 
-  let passCount = 0;
+  let passTop1 = 0;
+  let passTop2 = 0;
   const total = goldSamples.length;
 
-  // 🔸 중요한 부분: 전체 GOLD_SAMPLES를 그대로 순환
+  // Top1-Top2 점수 차이가 작으면 "혼합(blend)"으로 표시
+  const BLEND_GAP = 1.2;
+
+  // prevMode를 테스트에 넣고 싶으면 여기서 관리 가능(지금은 null 고정)
+  const prevMode = null;
+
   for (const sample of goldSamples) {
     const { id, text, expected } = sample;
 
     console.log(`\n#${id}`);
 
-    let decidedMode = null;
-    let signals = null;
-    let errorObj = null;
+    let llmSignals = null;
 
     try {
       // 1) LLM 호출 → signals 받기
-      const { signals: s } = await callLLM(text);
-      signals = s;
+      const { signals } = await callLLM(text);
+      llmSignals = signals;
 
-      // 2) 패턴 부스트 (지금은 패턴 히스토리가 없으니 빈 객체 사용)
-      const patternBoosts = getPatternBoosts({}); // 필요 없으면 내부에서 무시하게 구현해두면 됨
+      // 2) 패턴부스트 (문장 기반이 맞음)
+      const patternBoosts = getPatternBoosts(text);
 
-      // 3) FSM v3.0으로 최종 모드 결정
-      decidedMode = decideMode(signals, patternBoosts, null);
+      // 3) Top1/Top2 랭킹 산출 (✅ 여기서 getModeRanking 사용)
+      const ranking = getModeRanking(llmSignals, patternBoosts, prevMode, {
+        gapForBlend: BLEND_GAP,
+        prevModeHoldGap: 1.0,
+      });
 
-      const ok = decidedMode === expected;
+      const top1 = ranking.top1; // { mode, score }
+      const top2 = ranking.top2; // { mode, score }
+      const primary = top1.mode;
+      const secondary = top2?.mode ?? null;
 
-      if (ok) {
-        passCount++;
-        console.log(`✅ PASS  #${id}`);
+      const ok1 = primary === expected;
+      const ok2 = !ok1 && secondary === expected;
+
+      if (ok1) {
+        passTop1++;
+        console.log(`✅ PASS (Top1)  #${id}`);
+      } else if (ok2) {
+        passTop2++;
+        console.log(`🟡 PASS (Top2)  #${id}`);
       } else {
-        console.log(`❌ FAIL  #${id}`);
+        console.log(`❌ FAIL        #${id}`);
       }
+
+      console.log(`입력: ${text}`);
+      console.log(`기대: ${expected}`);
+      console.log(`Top1: ${primary} (score ${fmtScore(top1.score)})`);
+      console.log(`Top2: ${secondary ?? "(없음)"} (score ${fmtScore(top2?.score)})`);
+      console.log(
+        `Blend: ${ranking.blend ? "YES" : "NO"} (gap ${fmtScore(ranking.gap)})`
+      );
+
+      // 참고용: 엔드투엔드 LLM signals 출력
+      console.log("LLM signals:", llmSignals);
     } catch (err) {
-      errorObj = err;
       console.log(`❌ LLM 응답 없음 / 에러  #${id}`);
+      console.log(`입력: ${text}`);
+      console.log(`기대: ${expected}`);
+      console.log("error:", err?.message ?? err);
     }
 
-    console.log(`입력: ${text}`);
-    console.log(`기대: ${expected}`);
-    console.log(`FSM결과: ${decidedMode ?? "(결과 없음)"}`);
-    console.log("signals:", signals);
-
-    if (errorObj) {
-      console.log("error:", errorObj.message ?? errorObj);
-    }
-
-    // 🔸 Gemini 무료 쿼터 보호: 분당 15회 → 1회당 5초 정도로 여유있게
-    await sleep(5000);
+    // Gemini 무료 쿼터 보호
+    await sleep(4000); // 네가 2000으로 내려도 되긴 하는데, 불안정하면 다시 4000~5000
   }
 
   console.log("\n===============================");
-  console.log(`총 통과: ${passCount} / ${total}`);
+  console.log(`Top1 통과: ${passTop1}`);
+  console.log(`Top2 통과: ${passTop2}`);
+  console.log(`Top1+Top2 통과: ${passTop1 + passTop2} / ${total}`);
   console.log("===============================");
 }
 

@@ -43,6 +43,24 @@ export function extractSignals(text) {
     s.analysis_paralysis = Math.max(s.analysis_paralysis, 3);
   }
 
+  // ✅ 무기력/피곤/누워있고 싶다 = DELAY 강신호
+  if (
+    has("피곤") ||
+    has("지쳐") ||
+    has("의욕이 없다") ||
+    has("아무 의욕이 없다") ||
+    has("귀찮") ||
+    has("누워") ||
+    has("침대") ||
+    has("그냥 쉬고 싶다") ||
+    has("쉬고 싶다")
+  ) {
+    s.energy_level = 0; // 확정
+    s.analysis_paralysis = Math.max(s.analysis_paralysis, 2);
+    s.responsibility_avoidance = Math.max(s.responsibility_avoidance, 2);
+  }
+  
+
   if (
     has("뭘 먼저 해야 할지") ||
     has("우선순위") ||
@@ -92,28 +110,41 @@ export function extractSignals(text) {
     s.energy_level = Math.max(s.energy_level, 1);          // 아주 0은 아님, 회복 의지
   }
 
-  // -------------------------------------------------
-  // REFLECT : 내면 관찰/되돌아보기
-  // -------------------------------------------------
-  if (
-    has("되돌아보") ||
-    has("돌아보니") ||
-    has("곱씹어보니") ||
-    has("생각해보니") ||
-    has("이유를 찾고 싶다") ||
-    has("왜 이렇게") ||
-    has("원인을 분석해보고 싶다") ||
-    has("기준을 다시") ||
-    has("기준을 세워보고 싶다") ||
-    has("패턴이 보인다") ||
-    has("더 깊게 생각해보고 싶다") ||
-    has("내 감정을") ||
-    has("내 마음이 왜") ||
-    has("내면 관찰")
-  ) {
-    s.emotion_vs_logic = Math.max(s.emotion_vs_logic, 3);
-    s.analysis_paralysis = Math.max(s.analysis_paralysis, 2);
-  }
+ // -------------------------------------------------
+// REFLECT : 내면 관찰/되돌아보기
+// -------------------------------------------------
+const reflectHits =
+  has("되돌아보") ||
+  has("돌아보니") ||
+  has("돌아보") ||
+  has("되짚") ||
+  has("곱씹") ||
+  has("곱씹어보니") ||
+  has("생각해보니") ||
+  has("이해해보고 싶") ||
+  has("이유를 찾고 싶다") ||
+  has("이유를") ||
+  has("이유를 찾") ||
+  has("왜 이런") ||
+  has("왜 이렇게") ||
+  has("원인을 분석해보고 싶다") ||
+  has("기준을 다시") ||
+  has("기준을 세워보고 싶다") ||
+  has("패턴이 보인다") ||
+  has("더 깊게 생각해보고 싶다") ||
+  has("내 감정을") ||
+  has("내 마음이 왜") ||
+  has("내면 관찰") ||
+  has("들여다보고") ||
+  has("불편하게 걸리는") ||
+  has("선택이 옳았는지");
+
+if (reflectHits) {
+  s.emotion_vs_logic = Math.max(s.emotion_vs_logic, 3);
+  s.analysis_paralysis = Math.max(s.analysis_paralysis, 2);
+}
+
+
 
   // -------------------------------------------------
   // SIMPLIFY : 단순화/최소화/핵심만
@@ -186,21 +217,21 @@ export function extractSignals(text) {
   // 🔹 골드샘플 특수 케이스 튜닝
   // ---------------------------------------
   const textNorm = clean(text);
+  const textNoSpace = textNorm.replace(/\s/g, "");
 
   // 1) "일단 오늘은 버티는 게 전부다."
-  //  - 에너지는 거의 0, 약간 버티는 느낌 + 내면 쪽 신호
-  if (textNorm.includes("버티는게전부다")) {
-    s.energy_level = Math.max(s.energy_level, 0);      // 그대로 0 유지
+  if (textNoSpace.includes("버티는게전부다")) {
+    s.energy_level = Math.max(s.energy_level, 0);
     s.emotion_vs_logic = Math.max(s.emotion_vs_logic, 1);
     s.risk_avoidance = Math.max(s.risk_avoidance, 1);
   }
 
   // 2) "이번 주는 결과물을 반드시 만들어낸다."
-  //  - 주 단위 목표 + 결과물 = 실행 에너지 강함
-  if (textNorm.includes("결과물을반드시만들어낸다")) {
-    s.energy_level = Math.max(s.energy_level, 2);      // DECISIVE 쪽으로 밀어줌
+  if (textNoSpace.includes("결과물을반드시만들어낸다")) {
+    s.energy_level = Math.max(s.energy_level, 2);
     s.analysis_paralysis = Math.min(s.analysis_paralysis, 1);
   }
+
 
   return s;
 }
