@@ -16,6 +16,7 @@ import Footer from "./Footer";   // 🔹 footer import
 import { getDecisionCharacterFromLogs } from "../utils/decisionCharacter";
 import AiErrorNotice from "./AiErrorNotice";
 import ModeStoryCard from "./ModeStoryCard"; // 🔹 모드 스토리 카드 추가
+import { getKstDateString } from "../utils/date";
 
 // 기본은 로컬(개발용), 배포에서는 Vercel 환경변수로 덮어씀
 const API_BASE_URL =
@@ -297,9 +298,8 @@ function DailyLogInput() {
       }
       return;
     }
-
-    const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10);
+    
+    const dateStr = getKstDateString();
 
     const prevMode =
       nkos_logs.length > 0 ? nkos_logs[nkos_logs.length - 1].mode : "";
