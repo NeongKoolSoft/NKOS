@@ -1,9 +1,15 @@
-// src/pages/Welcome.jsx (또는 파일 경로에 맞게 수정)
-import Footer from "../components/Footer"; 
-import DemoFeature from "../components/DemoFeature"; // ✅ 맛보기 기능 import
+// src/pages/Welcome.jsx
+import { useNavigate } from "react-router-dom"; // ✅ 페이지 이동 훅 추가
+import Footer from "../components/Footer";
+// import DemoFeature from "../components/DemoFeature"; // ❌ 체험하기 기능 삭제
 
 export default function Welcome() {
-  // DemoFeature 내부에서 네비게이션을 처리하므로 여기서는 별도 핸들러가 필요 없습니다.
+  const navigate = useNavigate();
+
+  // 버튼 클릭 시 로그인 페이지로 이동
+  const handleStart = () => {
+    navigate("/login");
+  };
 
   return (
     // 전체를 세로 방향 레이아웃으로: 위 카드 + 아래 Footer
@@ -96,21 +102,18 @@ export default function Welcome() {
               </div>
             </section>
 
-            {/* 🔥 [변경] 기존 버튼 대신 '맛보기 입력창' 배치 */}
-            <section className="mt-6">
-               <div className="text-center mb-4">
-                 <h3 className="text-lg font-bold text-slate-800">
-                   지금 내 마음, 어떤 상태일까요?
-                 </h3>
-                 <p className="text-sm text-slate-500">
-                   아래에 한 줄만 적어보세요. 넝쿨OS가 즉시 분석해드립니다. (로그인 X)
-                 </p>
-               </div>
-               
-               {/* 여기에 맛보기 기능 컴포넌트 삽입 */}
-               <DemoFeature />
-
-               {/* 기존의 안내 문구는 DemoFeature 안에도 있지만, 강조를 위해 남겨둘 수도 있습니다. */}
+            {/* 🔥 [변경] 체험하기 삭제 -> 로그인 유도 버튼 복구 */}
+            <section className="mt-8 text-center">
+              <button
+                onClick={handleStart}
+                className="w-full md:w-auto px-10 py-4 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg shadow-md hover:shadow-lg transition-all transform hover:-translate-y-1"
+              >
+                구글 계정으로 3초 만에 시작하기
+              </button>
+              <p className="mt-3 text-sm text-slate-500">
+                로그인해도 기록은 언제든 삭제 가능하며, Google 인증만 사용합니다.<br/>
+                비밀번호는 넝쿨OS에 저장되지 않습니다.
+              </p>
             </section>
           </div>
         </div>

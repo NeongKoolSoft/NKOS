@@ -2,7 +2,8 @@
 // FSM v3.0 + LLM 엔드투엔드 골드샘플 테스트 (Top1/Top2)
 
 // ✅ gold
-import { goldSamples } from "./goldSamples.js";
+//import { goldSamples } from "./goldSamples.js";
+import { goldSamplesV2 as goldSamples } from "./goldSamples.v2.js";
 
 // ✅ engine
 import { getModeRanking } from "../src/lib/modeEngine.js";

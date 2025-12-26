@@ -419,7 +419,7 @@ export default function LifePage() {
       {/* 상단 헤더 */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 800 }}>넝쿨라이프</div>
+          <h2 className="nk-title-main text-2xl font-bold">넝쿨 라이프</h2>
           <div style={{ fontSize: 12, color: "#6b7280" }}>최근 7일 기반의 삶의 국면(챕터) & 이동</div>
         </div>
       </div>

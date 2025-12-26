@@ -323,7 +323,7 @@ function PlannerPage() {
       <div className="max-w-3xl mx-auto space-y-6">
         {/* 제목 영역 */}
         <div className="flex items-center justify-between">
-          <h2 className="nk-title-main text-2xl font-bold">넝쿨플래너</h2>
+          <h2 className="nk-title-main text-2xl font-bold">넝쿨 플래너</h2>
           <input
             type="date"
             className="border rounded px-2 py-1 text-sm"

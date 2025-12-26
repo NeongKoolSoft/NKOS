@@ -568,10 +568,8 @@ function DailyLogInput() {
       {/* ✅ 메인 영역 전체를 큰 카드로 감싸기 */}
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-3xl shadow-sm border border-blue-100 px-4 md:px-4 py-6 md:py-8">
-          {/* 오늘의 모드 카드 */}
-          <h2 className="nk-title-main text-2xl md:text-3xl font-bold mb-3">
-            오늘의 모드
-          </h2>
+          {/* 오늘의 모드 카드 */}          
+          <h2 className="nk-title-main text-2xl font-bold">오늘의 모드</h2>
           <p className="nk-subtitle mb-4">
             오늘 하루를 1~3줄로 남기면, 넝쿨OS가 당신의 의사결정 모드를
             계산합니다.
