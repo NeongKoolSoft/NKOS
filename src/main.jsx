@@ -6,11 +6,11 @@ import { BrowserRouter } from "react-router-dom";
 import.meta.env.VITE_GA_MEASUREMENT_ID
 import ReactGA from "react-ga4";
 
+console.log("--- 배포 환경 변수 디버깅 ---");
+console.log("전체 환경변수 객체:", import.meta.env); 
+console.log("GA ID 값:", import.meta.env.VITE_GA_MEASUREMENT_ID);
+
 const GA_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
-
-
-// 🔴 아래 로그를 추가해서 배포된 사이트 콘솔(F12)에서 확인해 보세요!
-console.log("환경변수 체크 - GA_ID:", GA_ID); 
 
 if (GA_ID) {
   ReactGA.initialize(GA_ID);
