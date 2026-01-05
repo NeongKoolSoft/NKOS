@@ -16,7 +16,7 @@ if (GA_ID) {
   ReactGA.initialize(GA_ID);
   console.log("GA4 초기화 완료!");
 } else {
-  console.error("GA_ID를 찾을 수 없습니다. 환경변수 설정을 확인하세요.");
+  console.error("GA_ID값를 찾을 수 없습니다. 환경변수 설정을 확인하세요.");
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(
