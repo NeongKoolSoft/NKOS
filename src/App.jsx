@@ -55,6 +55,7 @@ import LifePage from "./pages/LifePage";
 import ErpDemo from "./pages/ErpDemo";
 import ErpDemo2 from "./pages/ErpDemo2";
 import ErpDemo3 from "./pages/ErpDemo3";
+import ReactGA from "react-ga4";
 
 // ============================================================================
 // 1) 공통 유틸 컴포넌트 : ScrollToTop
