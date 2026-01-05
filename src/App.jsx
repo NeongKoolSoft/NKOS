@@ -144,6 +144,14 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  useEffect(() => {
+    // 사용자가 페이지를 이동할 때마다 GA로 전송
+    ReactGA.send({ 
+      hitType: "pageview", 
+      page: location.pathname + location.search 
+    });
+  }, [location]);
+
   // -------------------------
   // (a) 약관/정책 페이지 여부
   // - 온보딩은 정책/약관 페이지에서 막지 않기 위해 사용

@@ -17,6 +17,7 @@ import { getDecisionCharacterFromLogs } from "../utils/decisionCharacter";
 import AiErrorNotice from "./AiErrorNotice";
 import ModeStoryCard from "./ModeStoryCard"; // 🔹 모드 스토리 카드 추가
 import { getKstDateString } from "../utils/date";
+import ReactGA from "react-ga4";
 
 // 기본은 로컬(개발용), 배포에서는 Vercel 환경변수로 덮어씀
 const API_BASE_URL =
@@ -298,6 +299,12 @@ function DailyLogInput() {
       }
       return;
     }
+
+    ReactGA.event({
+      category: "AI_Agent",
+      action: "query_submit",
+      label: userQuery, 
+    });    
     
     const dateStr = getKstDateString();
 
