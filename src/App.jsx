@@ -49,6 +49,13 @@ import InsightReport from "./pages/InsightReport";
 import Welcome from "./pages/Welcome"; // ★ 변경: 네이버 광고용 /welcome 랜딩 페이지
 import LifePage from "./pages/LifePage";
 
+// -------------------------
+// 넝쿨ERP
+// -------------------------
+import ErpDemo from "./pages/ErpDemo";
+import ErpDemo2 from "./pages/ErpDemo2";
+import ErpDemo3 from "./pages/ErpDemo3";
+
 // ============================================================================
 // 1) 공통 유틸 컴포넌트 : ScrollToTop
 // - 라우트(pathname)가 변경될 때마다 스크롤을 항상 최상단으로 이동
@@ -290,6 +297,9 @@ function App() {
 
           {/* 이메일/소셜 로그인 화면 */}
           <Route path="/login" element={<Login />} />
+          <Route path="/erp-demo" element={<ErpDemo />} />
+          <Route path="/erp-demo2" element={<ErpDemo2 />} />
+          <Route path="/erp-demo3" element={<ErpDemo3 />} />
 
           {/* 정책/약관 페이지 (비로그인에서도 접근 가능) */}
           <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -332,6 +342,11 @@ function App() {
 
           {/* Pro 안내 / 후원 안내 페이지 */}
           <Route path="/pro-support" element={<ProSupportPage />} />
+
+          {/* ERP 데모 페이지 */}
+          <Route path="/erp-demo" element={<ErpDemo />} />
+          <Route path="/erp-demo2" element={<ErpDemo2 />} />
+          <Route path="/erp-demo3" element={<ErpDemo3 />} />
 
           {/* 정책/약관 (로그인 상태에서도 접근 가능) */}
           <Route path="/privacy" element={<PrivacyPolicy />} />

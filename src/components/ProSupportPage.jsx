@@ -130,7 +130,7 @@ function ProSupportPage() {
               </label>
               <input
                 type="number"
-                placeholder="예: 5000"
+                placeholder="예: 2900"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 className="w-full border rounded-lg px-3 py-2 text-sm"

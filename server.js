@@ -16,6 +16,10 @@ import cors from "cors";
 import { callGeminiSafe } from "./llmClient.js";
 import { createClient } from "@supabase/supabase-js";
 
+// ✅ [추가] PostgreSQL 연결을 위한 라이브러리 가져오기
+import pg from "pg";
+const { Pool } = pg;
+
 dotenv.config();
 
 // ============================================================
@@ -42,6 +46,20 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 
 // ✅ 서버 전용 Supabase 클라이언트
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+// ------------------------------------------------------------
+// ✅ [추가] 가상 ERP 데모용 DB 연결 (PostgreSQL Direct Connect)
+// ------------------------------------------------------------
+// 주의: 실제 배포 시에는 이 주소도 .env 파일에 넣는 것이 안전합니다.
+//const connectionString = "postgresql://postgres:[nkerp15648978!]@db.fwsoxupbjdcvertfckbq.supabase.co:5432/postgres";
+// ✅ [수정] IPv4 호환되는 'Pooler' 주소 사용 (포트 6543)
+const connectionString = "postgresql://postgres.fwsoxupbjdcvertfckbq:nkerp15648978!@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres";
+
+const pool = new Pool({
+  connectionString,
+  ssl: { rejectUnauthorized: false }, // Supabase 접속 필수 설정
+});
+// ------------------------------------------------------------
 
 // ============================================================
 // 2) 서버 설정
@@ -1027,6 +1045,89 @@ app.post("/api/analyze-log", async (req, res) => {
   } catch (e) {
     console.error("/api/analyze-log fatal:", e);
     return res.status(500).json({ error: "서버 내부 오류가 발생했습니다." });
+  }
+});
+
+// ============================================================
+// ✅ [추가] 7.5) 가상 ERP 데모 API (/api/erp-demo)
+// ============================================================
+app.post("/api/erp-demo", async (req, res) => {
+  const { question } = req.body;
+  console.log(`🏭 [ERP Demo] 질문 수신: "${question}"`);
+
+  try {
+    // 1️⃣ [SQL 생성] AI에게 질문을 SQL로 변환 요청
+    const schemaInfo = `
+      [데이터베이스 테이블 정보]
+      - TB_CUSTOMER (CustCode, CustName, CreditLimit, Balance)
+        * Balance 설명: 현재 갚지 않은 미수금(외상값) 잔액.
+      - TB_SALES_HDR (Status)
+        * Status 값: 'Pending' (아직 돈 안 냄), 'Shipped' (배송 완료)
+      
+      [AI가 꼭 지켜야 할 규칙]
+      1. DB는 PostgreSQL이다.
+      2. 사용자가 '돈 안 낸 거', '미수금', '얼마야?'라고 물어보면 'Balance > 0' 조건으로 찾아라.
+      3. [데이터 조회 규칙]
+         - 기본: 거래처 이름(CustName)과 금액(Balance)을 반드시 같이 가져와라.
+         - 예외: 사용자가 '전체 합계', '총액(Total Sum)'을 물어보면, 이름 없이 'SUM(Balance)' 함수만 써도 된다.
+      4. 사족을 달지 말고 오직 SQL 쿼리 문장만 출력해라.
+    `;
+
+    const sqlPrompt = `
+      사용자 질문: "${question}"
+      스키마 정보: ${schemaInfo}
+      조건: 오직 SQL 문장만 출력해 (마크다운 없이). 따옴표는 '' 사용.
+    `;
+
+    // 넝쿨OS에서 쓰는 모델 재사용 (gemini-2.0-flash 추천)
+    const modelName = "gemini-2.0-flash";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+
+    const sqlRes = await fetch(`${url}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: sqlPrompt }] }]
+      })
+    });
+    
+    const sqlJson = await sqlRes.json();
+    let sqlQuery = sqlJson?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    
+    // 마크다운 제거 (```sql ... ```)
+    sqlQuery = sqlQuery.replace(/```sql|```/g, "").trim();
+    console.log("🤖 생성된 SQL:", sqlQuery);
+
+    // 2️⃣ [DB 조회] 생성된 SQL로 진짜 DB 조회
+    const dbResult = await pool.query(sqlQuery);
+    const rows = dbResult.rows;
+    console.log(`📊 조회 결과: ${rows.length}건`);
+
+    // 3️⃣ [결과 요약] 조회된 데이터를 바탕으로 자연어 답변 생성
+    const summaryPrompt = `
+      질문: "${question}"
+      SQL 결과: ${JSON.stringify(rows)}
+      
+      위 데이터를 바탕으로 사장님에게 보고하듯 구체적인 숫자를 포함해서 짧게 답변해.
+      (결과가 없으면 없다고 정중히 말해.)
+    `;
+
+    const sumRes = await fetch(`${url}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: summaryPrompt }] }]
+      })
+    });
+
+    const sumJson = await sumRes.json();
+    const finalAnswer = sumJson?.candidates?.[0]?.content?.parts?.[0]?.text || "죄송합니다. 답변을 생성하지 못했습니다.";
+
+    res.json({ answer: finalAnswer, debugSql: sqlQuery });
+
+  } catch (error) {
+    console.error("❌ ERP Demo Error:", error);
+    res.status(500).json({ error: "ERP 처리 중 오류가 발생했습니다." });
   }
 });
 
