@@ -303,7 +303,7 @@ function DailyLogInput() {
     ReactGA.event({
       category: "AI_Agent",
       action: "query_submit",
-      label: userQuery, 
+      label: trimmed,
     });    
     
     const dateStr = getKstDateString();
